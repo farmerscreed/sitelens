@@ -255,8 +255,8 @@ otp_expiry = 3600
 # content_path = "./templates/password_changed_notification.html"
 
 [auth.sms]
-# Allow/disallow new user signups via SMS to your project.
-enable_signup = false
+# Phone OTP is the production auth method (Termii in prod). Enabled for local dev.
+enable_signup = true
 # If enabled, users need to confirm their phone number before signing in.
 enable_confirmations = false
 # Template for sending OTP to users
@@ -264,9 +264,11 @@ template = "Your code is {{ .Code }}"
 # Controls the minimum amount of time that must pass before sending another sms otp.
 max_frequency = "5s"
 
-# Use pre-defined map of phone number to OTP for testing.
-# [auth.sms.test_otp]
-# 4152127777 = "123456"
+# DEV SHIM: fixed phone→OTP map so local login needs no real SMS (CLAUDE.md).
+# Production uses Termii; these test codes never ship. Matches the seeded users.
+[auth.sms.test_otp]
+"+2348000000001" = "123456"   # Ada  — Org A admin
+"+2348000000002" = "123456"   # Bode — Org B admin
 
 # Configure logged in session timeouts.
 # [auth.sessions]
@@ -281,9 +283,10 @@ max_frequency = "5s"
 # uri = "pg-functions://postgres/auth/before-user-created-hook"
 
 # This hook runs before a token is issued and allows you to add additional claims based on the authentication method used.
-# [auth.hook.custom_access_token]
-# enabled = true
-# uri = "pg-functions://<database>/<schema>/<hook_name>"
+# Injects active_org_id + user_role so RLS (which gates on request.jwt.claims.active_org_id) works for real logins.
+[auth.hook.custom_access_token]
+enabled = true
+uri = "pg-functions://postgres/public/custom_access_token_hook"
 
 # Configure one of the supported SMS providers: `twilio`, `twilio_verify`, `messagebird`, `textlocal`, `vonage`.
 [auth.sms.twilio]
