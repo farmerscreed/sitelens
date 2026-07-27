@@ -21,7 +21,7 @@ echo "→ $(ls supabase/migrations/*.sql | wc -l) migrations + seed applied"
 
 echo "═══ tests ═══"
 fail=0
-for t in rls_isolation a0_token_hook ac7_price_recost b_recipe ac5_boq_import g_hardening m2_buildings_board; do
+for t in rls_isolation a0_token_hook ac7_price_recost b_recipe ac5_boq_import g_hardening m2_buildings_board ac8_feasibility; do
   printf "  %-20s " "$t"
   if out=$($PSQL < "supabase/tests/$t.sql" 2>&1); then
     echo "$out" | grep -oE "(PASS[^.]*|ALL PASS)" | head -1
