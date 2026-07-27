@@ -165,3 +165,28 @@ logged here so the founder can review drift. Newest at the bottom.
     a stage's whole cost lands in the period it starts. Assumptions JSONB holds
     `period_unit`/`period_days`/`batches{hint:{start}}`; inflows are `[{period, amount}]`.
     Only inputs are stored — results are always recomputed live (F-PLAN-6).
+
+## M4
+
+23. **Media derivatives generated on-device (upload 3), not server-side.** Bandwidth
+    (NF-6 < 15 MB/day) + offline viewing + thumbs-first (§13.4) favour the phone
+    generating thumb/display locally; the original is copied byte-for-byte (never
+    re-encoded — §5.3). `fn_register_media` just stores the keys + flags. Server/edge
+    derivative generation from the original is a later option.
+
+24. **AC-1 verified at the sync-protocol layer; Flutter is scaffolded, not built.** The
+    no-duplicate guarantee is the server behaviour: `fn_submit_daily_report`/
+    `fn_register_media` are idempotent (idempotency_key / client id), so a resend after a
+    lost ack is a no-op. `ac1_offline_sync.sql` proves it (submit → retry same key → one
+    row). The Flutter app (`apps/mobile/`) is code-complete but not built here (no SDK);
+    it mirrors the verified server contract.
+
+25. **`phash` duplicate flag is a basic EXACT match in M4.** `fn_register_media` flags a
+    photo whose 64-bit hash exactly matches another in the same project within 90 days;
+    the phone computes an aHash. Full perceptual near-duplicate detection (AI-1) is M6 —
+    the column + flag path exist now so no schema change is needed then.
+
+26. **Daily-report geofence flag lives on the photo, not the report.** Per PRD the
+    report has no `within_geofence` column; `fn_register_media` computes it per photo
+    (`ST_DWithin` vs the project's centroid/radius). A report with flagged photos is what
+    triggers PM approval (F-9.5). Backdating > 3 days is rejected outright (F-9.2).

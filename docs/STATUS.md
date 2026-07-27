@@ -5,7 +5,31 @@ session. Newest status at the top of each section._
 
 ---
 
-## M3 progress (current milestone) — COMPLETE (DB verified)
+## M4 progress (current milestone) — COMPLETE (backend verified; Flutter scaffolded)
+
+Plan: `docs/M4_PLAN.md`. Gate **AC-1**: an engineer submits a daily report fully offline;
+it syncs with no duplicates and no loss.
+
+- **Backend (verified):** `m4a_daily_report` — `fn_submit_daily_report` (idempotent on
+  idempotency_key → lost-ack retry is a no-op; amendment→new version; backdate>3d
+  rejected; links media/tasks; membership-gated) and `fn_register_media` (idempotent on
+  client id; geofence + mock-location + exact-phash duplicate flags); private
+  `report-media` bucket + org-scoped storage RLS.
+- **Test `ac1_offline_sync.sql`: PASS** — offline submit, **retry with same
+  idempotency_key creates NO duplicate** report/media, amendment versions,
+  geofence/backdate/phash/authz.
+- **Mobile:** `apps/mobile/` Flutter scaffold — Drift local store (source of truth),
+  outbox + sync worker (UUIDv7, idempotency, backoff), report repository (write-local-
+  then-enqueue), capture service (3 derivatives + aHash). **Code-complete, not built on
+  this box** (no Flutter SDK) — mirrors the verified server contract. See its README.
+- Full suite green (22 migrations): AC-6, A0, AC-7, B, AC-5, G, M2, AC-8, **AC-1**.
+
+The human flips `CLAUDE.md` M4→M5 when satisfied. **M5** = materials + expenses +
+approvals + requirement-vs-actual (the M2 board's "consumed vs required" seam closes).
+
+---
+
+## M3 (complete)
 
 Plan: `docs/M3_PLAN.md`. Gate **AC-8**: correct period-by-period cash requirement, peak,
 and total for a staggered multi-type/multi-batch plan; recompute across 300 < 5 s.
@@ -111,9 +135,9 @@ board shows each at its stage) — the first consumers of the recipe library + v
 
 ## Where we are
 
-- **Active milestone: M3 (feasibility planner) — DONE (DB-verified).** M0–M3 all
-  complete; see the sections above. Next is M4 (daily report + media + offline sync,
-  first mobile work) once the human flips the milestone line.
+- **Active milestone: M4 (daily report + offline sync) — DONE (backend verified,
+  Flutter scaffolded).** M0–M4 all complete; see the sections above. Next is M5
+  (materials + expenses + requirement-vs-actual) once the human flips the milestone line.
 - **M0 (Supabase project, schema, RLS, auth scaffold) — COMPLETE and VERIFIED.**
 - **M0 acceptance gate AC-6 PASSES** ("Org A cannot read a single row of Org B by any
   route — verified against the API and the database directly"):
@@ -223,13 +247,13 @@ local `psql` isn't installed.
   API test; it can't be removed here due to the Docker restriction. Harmless.
 - `authenticator` role password was set to `postgres` (local only).
 
-## Next: M4 (only after the human flips the milestone line)
+## Next: M5 (only after the human flips the milestone line)
 
-M4 = daily report + media pipeline + offline sync (§9 F-9, §5.3, §13). This is the
-**first mobile (Flutter/Drift) work** and the hardest engineering (offline-first): local
-SQLite source of truth, an outbox with client-generated UUIDv7 + idempotency_key so a
-retry over flaky 3G never duplicates, the three-derivative photo pipeline
-(thumb/display/original), and geofence/EXIF stamping. Gate (AC-1): an engineer submits a
-complete daily report fully offline; it syncs with no duplicates and no loss. Note: this
-milestone needs decisions on the Flutter app scaffold and whether the sync server is Edge
-Functions vs the existing SECURITY DEFINER fns.
+M5 = materials + expenses + approvals + requirement-vs-actual (§9 F-10/F-11, §10). This
+**closes the M2 board's "consumed vs required" seam** and is heavily money-path (Rule 1):
+material IN/OUT via `fn_log_material_txn` with a row-locked running balance that can never
+go negative (F-10.4/5), void-with-reason, expenses with approval thresholds
+(`fn_create_expense`/`fn_approve_expense`), and the requirement-vs-actual overrun flag at
+stage completion (wires into M2's `fn_complete_stage`). Gates: AC-4 (balances always
+accurate, never negative) and AC-9 (stage overrun flags at completion). Also AC-11
+(expenses above threshold can't be spent without approval).
