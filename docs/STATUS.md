@@ -5,7 +5,29 @@ session. Newest status at the top of each section._
 
 ---
 
-## M5 progress (current milestone) — COMPLETE (DB verified)
+## M6 progress (current milestone) — COMPLETE (backend verified; edge AI stubbed)
+
+Plan: `docs/M6_PLAN.md`. Gates: **AC-3** (resubmitted photo flagged) + **reorder advice
+matches remaining BOQ**.
+
+- **Backend (verified):** `m6a_ai` — `fn_phash_hamming` + `fn_register_media` near-dup
+  (Hamming ≤ 8, 90-day window, AC-3); `fn_reorder_advice` (remaining BOQ vs stock →
+  order); `fn_record_inference`/`fn_resolve_inference` (Rule 3 propose→verdict=label);
+  `fn_match_reports` (pgvector cosine over report_embeddings).
+- **Tests PASS:** `ac3_duplicate_photo`, `m6_reorder_advice`, `m6_inference`.
+- **Edge (code-complete, DEV_AI_MODE):** `receipt-ocr` (AI-2 vision + typed-amount
+  cross-check → proposal), `ask` (AI-8 embed → pgvector retrieval + live figures → answer).
+  AI-3 photo quality gate is on-device (Flutter, deferred to build).
+- **Web:** `app/ask` (question box), reorder-advice panel on materials, `app/ai`
+  (accept/reject AI proposals). tsc clean.
+- Full suite green (26 migrations, 15 suites): + AC-3, reorder, inference.
+
+The human flips `CLAUDE.md` M6→M7 when satisfied. **M7** = client portal + notifications
++ weekly digest.
+
+---
+
+## M5 (complete)
 
 Plan: `docs/M5_PLAN.md`. Gates **AC-4** (balances never negative), **AC-9** (stage
 overrun flags at completion), **AC-11** (no spend without approval).
@@ -156,9 +178,9 @@ board shows each at its stage) — the first consumers of the recipe library + v
 
 ## Where we are
 
-- **Active milestone: M5 (materials + expenses + req-vs-actual) — DONE (DB-verified).**
-  M0–M5 all complete; see the sections above. Next is M6 (AI features) once the human
-  flips the milestone line.
+- **Active milestone: M6 (AI features) — DONE (backend verified; edge stubbed).**
+  M0–M6 all complete; see the sections above. Next is M7 (client portal + notifications
+  + weekly digest) once the human flips the milestone line.
 - **M0 (Supabase project, schema, RLS, auth scaffold) — COMPLETE and VERIFIED.**
 - **M0 acceptance gate AC-6 PASSES** ("Org A cannot read a single row of Org B by any
   route — verified against the API and the database directly"):
@@ -268,13 +290,13 @@ local `psql` isn't installed.
   API test; it can't be removed here due to the Docker restriction. Harmless.
 - `authenticator` role password was set to `postgres` (local only).
 
-## Next: M6 (only after the human flips the milestone line)
+## Next: M7 (only after the human flips the milestone line)
 
-M6 = AI features (§11.4): AI-1 duplicate-photo detection (perceptual hash, no model —
-build first), AI-2/7 receipt + PDF-BOQ OCR (vision LLM → structured; the M1 PDF lane's
-real model), AI-3 photo quality gate (on-device), AI-8 natural-language questions (RAG
-over structured data + reports via pgvector), AI-9 BOQ-aware reorder advice (remaining
-requirement + schedule + stock → order proposal, building on M5 balances + M1 recipes).
-All behind the OpenRouter router with `DEV_AI_MODE` stubs (no paid key in tests). Gates:
-AC-3 (resubmitted old photo flagged) and reorder advice matches remaining BOQ.
-`ai_inferences`/`ai_models`/`report_embeddings` tables already exist (M0).
+M7 = client portal + notifications + weekly digest (§F-13, §5.4, AI-4/5). Read-only
+tokenised portal per recipient (link + 6-digit PIN, 90-day expiry, revocable, every
+access logged — F-13/SEC-11) served via a token-keyed SECURITY DEFINER function (the
+portal never authenticates as a user, never exposes supplier names/unit prices/worker
+data). Notifications behind an abstraction with a dev-mode `dev_outbox` (WhatsApp/SMS/
+Resend). Weekly digest (AI-4) + spend-anomaly notes (AI-5) as nightly LLM jobs (pg_cron).
+Gate (AC-13): a client opens the portal with link + PIN, no account; link is revocable;
+every access logged. `portal_links`/`portal_access_log` tables exist (M0).

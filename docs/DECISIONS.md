@@ -211,3 +211,29 @@ logged here so the founder can review drift. Newest at the bottom.
     `fn_complete_stage` computes used-vs-required for the completed stage and writes a
     `stage_overrun` audit row "at the pour" (AC-9); the view shows consumed/required/
     overrun live on the building card. A dedicated discrepancies table can come later.
+
+## M6
+
+30. **Duplicate photo = Hamming distance ≤ 8 of 64 bits within 90 days (no model).**
+    `fn_phash_hamming` counts differing bits (XOR then count '1's); `fn_register_media`
+    flags the closest earlier photo within threshold + window as `duplicate_of`. Exact
+    match (M4) missed real resubmissions (re-encoding shifts a few bits); a small
+    threshold catches them with low false positives (AC-3). Full aHash is computed
+    on-device (M4 capture service).
+
+31. **Reorder advice is total-remaining (recipe − consumed − stock), not yet
+    schedule-weighted.** The gate is "matches remaining BOQ", which this satisfies
+    exactly (AC-9 test: required 200 − consumed 50 − stock 30 = order 120). The
+    batch-schedule weighting ("300 bags by slab in 2 weeks") is a refinement layering on
+    M2 batches + M3 timing later.
+
+32. **Every AI output is an `ai_inferences` proposal a human disposes (Rule 3, §11.2).**
+    `fn_record_inference` writes `proposed` with confidence/cost_estimate;
+    `fn_resolve_inference` sets accepted/rejected and stores `human_value` — the
+    corrected truth becomes the training label (the flywheel). OCR/reorder/answers never
+    auto-commit. AI-3 (photo quality gate) is on-device and deferred to the Flutter build.
+
+33. **AI vision/LLM calls go through the OpenRouter router with `DEV_AI_MODE`.**
+    `extractReceipt`/`embed`/`answer` return deterministic stubs in dev (no paid key, no
+    external call in tests); model ids are env config, never hardcoded (§11.3). Edge fns
+    `receipt-ocr` and `ask` are code-complete (not run on this box).
