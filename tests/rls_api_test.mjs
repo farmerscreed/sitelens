@@ -13,10 +13,12 @@
 import crypto from 'node:crypto';
 
 const API_URL    = process.env.API_URL   || 'http://127.0.0.1:54321';
-const ANON_KEY   = process.env.ANON_KEY;
+// Kong fronts PostgREST at /rest/v1/ ; a bare PostgREST serves tables at / .
+const REST_PREFIX = process.env.REST_PREFIX ?? '/rest/v1';
+const ANON_KEY   = process.env.ANON_KEY || '';   // apikey header (Kong path); ignored by bare PostgREST
 const JWT_SECRET = process.env.JWT_SECRET;
-if (!ANON_KEY || !JWT_SECRET) {
-  console.error('Missing ANON_KEY or JWT_SECRET env (get them from `supabase status`).');
+if (!JWT_SECRET) {
+  console.error('Missing JWT_SECRET env (from `supabase status`, or the local default).');
   process.exit(2);
 }
 
@@ -52,9 +54,9 @@ const MATRIX = {
 };
 
 async function fetchIds(table, jwt) {
-  const res = await fetch(`${API_URL}/rest/v1/${table}?select=id`, {
-    headers: { apikey: ANON_KEY, Authorization: `Bearer ${jwt}` },
-  });
+  const headers = { Authorization: `Bearer ${jwt}` };
+  if (ANON_KEY) headers.apikey = ANON_KEY;
+  const res = await fetch(`${API_URL}${REST_PREFIX}/${table}?select=id`, { headers });
   if (!res.ok) throw new Error(`GET ${table} -> ${res.status} ${await res.text()}`);
   return (await res.json()).map((row) => row.id);
 }

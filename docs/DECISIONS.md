@@ -60,3 +60,44 @@ logged here so the founder can review drift. Newest at the bottom.
    `git init` now (done); CI pipeline deferred; WhatsApp BSP application is an
    external/human step (tracked in CLOUD_MIGRATION.md). Termii/R2/OpenRouter are
    shimmed/deferred.
+
+9. **`UNIQUE (org_id, lower(...))` table constraints rewritten as unique indexes.**
+   The PRD's own SQL for `materials_catalog` and `material_aliases` used an inline
+   `UNIQUE (org_id, lower(name))` table constraint. Postgres rejects expressions in
+   a UNIQUE constraint (`syntax error at or near "("`) — `db reset` failed on it.
+   Rewrote both as `CREATE UNIQUE INDEX ... (org_id, lower(...))`, same intent
+   (case-insensitive uniqueness per org). This is a bug in the PRD SQL that only
+   surfaced by actually running the migration.
+
+10. **`spatial_ref_sys` is the one public table without RLS — intentionally.** It is
+    PostGIS's static coordinate-system reference table (EPSG codes, no tenant data),
+    created by `CREATE EXTENSION postgis`. Enabling RLS on an extension-owned table
+    risks breaking extension upgrades, and Supabase's own linter treats it as a
+    known exception. All 41 SiteLens domain tables have RLS enabled.
+
+11. **`anon` gets NO table SELECT grant; only `authenticated` does.** Tighter than
+    RLS-alone: `anon` is blocked at the privilege layer, not just filtered by
+    policy. The client portal reads via a token-keyed SECURITY DEFINER function,
+    never as `anon` directly, so `anon` needs no table access. The AC-6 DB test
+    accepts "anon blind" via either 0 rows (RLS) or permission-denied (no grant).
+
+12. **Local verification worked around a Docker restriction in this environment.**
+    This box's Docker daemon refuses `stop`/`kill`/`rm` on ANY container
+    (`permission denied`), so `supabase db reset` and `supabase start` (which
+    recreate the DB container) cannot complete here. We verified M0 instead by:
+    (a) wiping `public` and re-applying all migrations + seed via
+    `docker exec ... psql` against the running `supabase_db_sitelens` container —
+    proving a clean build; (b) running the direct-DB AC-6 test the same way; and
+    (c) launching a standalone PostgREST container (`sitelens_rest_manual`) on the
+    supabase network, connected as the non-superuser `authenticator` role, and
+    running the API AC-6 test against it. On a machine WITHOUT this Docker
+    restriction, `supabase db reset` + `scripts/verify_m0.sh` run directly.
+    (Authenticator password was set to 'postgres' via `supabase_admin` for the
+    manual PostgREST; `postgres` is not the superuser in Supabase — `supabase_admin`
+    is.)
+
+13. **`rls_isolation.sql` details forced by psql autocommit + role privileges.** The
+    matrix temp table drops the `ON COMMIT DROP` clause (psql autocommits each
+    statement, which would drop it before the INSERT) and is read into plpgsql
+    arrays BEFORE `SET ROLE authenticated` (a postgres-owned temp table isn't
+    readable as `authenticated`).

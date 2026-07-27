@@ -112,9 +112,13 @@ CREATE TABLE materials_catalog (
   unit          VARCHAR(20) NOT NULL,
   reorder_level NUMERIC(12,2) DEFAULT 10,
   standard_rate NUMERIC(12,2),
-  archived_at   TIMESTAMPTZ,
-  UNIQUE (org_id, lower(name))
+  archived_at   TIMESTAMPTZ
 );
+-- Case-insensitive uniqueness on name per org. The PRD wrote this as an inline
+-- `UNIQUE (org_id, lower(name))` table constraint, which Postgres rejects
+-- (expressions aren't allowed in a UNIQUE constraint) — it must be a unique
+-- index. Same intent. (DECISIONS.md #9)
+CREATE UNIQUE INDEX uq_materials_catalog_name ON materials_catalog (org_id, lower(name));
 
 CREATE TABLE material_transactions (
   id                    UUID PRIMARY KEY,

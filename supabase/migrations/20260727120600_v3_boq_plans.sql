@@ -28,9 +28,11 @@ CREATE TABLE material_aliases (              -- remember "this text = this mater
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id      UUID NOT NULL REFERENCES organizations(id) ON DELETE RESTRICT,
   material_id UUID NOT NULL REFERENCES materials_catalog(id) ON DELETE CASCADE,
-  alias_text  VARCHAR(200) NOT NULL,
-  UNIQUE (org_id, lower(alias_text))
+  alias_text  VARCHAR(200) NOT NULL
 );
+-- Case-insensitive uniqueness on alias per org. Same PRD fix as materials_catalog:
+-- expression uniqueness must be a unique index, not a table constraint. (DECISIONS.md #9)
+CREATE UNIQUE INDEX uq_material_aliases ON material_aliases (org_id, lower(alias_text));
 
 -- ── FEASIBILITY PLANS ───────────────────────────
 CREATE TABLE plans (
