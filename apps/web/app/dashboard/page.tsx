@@ -35,6 +35,7 @@ export default async function Dashboard() {
       </header>
 
       <nav className="flex gap-4 text-sm">
+        <a className="underline" href="/board">Board</a>
         <a className="underline" href="/prices">Price list</a>
         <a className="underline" href="/recipes">Recipes</a>
         <a className="underline" href="/boq-import">BOQ import</a>
