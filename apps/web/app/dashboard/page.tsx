@@ -42,6 +42,8 @@ export default async function Dashboard() {
         <a className="underline" href="/prices">Price list</a>
         <a className="underline" href="/recipes">Recipes</a>
         <a className="underline" href="/boq-import">BOQ import</a>
+        <a className="underline" href="/ask">Ask</a>
+        <a className="underline" href="/ai">AI proposals</a>
       </nav>
 
       <section className="rounded-lg border border-neutral-200 p-4 dark:border-neutral-800">

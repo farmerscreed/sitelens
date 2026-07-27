@@ -15,11 +15,14 @@ export default async function MaterialsPage({ searchParams }: { searchParams: { 
   const { data: projects } = await supabase.from("projects").select("id,name").order("name");
   const projectId = searchParams.project ?? projects?.[0]?.id ?? "";
 
-  const [{ data: balances }, { data: materials }, { data: buildings }] = await Promise.all([
+  const [{ data: balances }, { data: materials }, { data: buildings }, { data: reorder }] = await Promise.all([
     supabase.from("material_balances").select("material_id,balance,updated_at").eq("project_id", projectId),
     supabase.from("materials_catalog").select("id,name,unit,reorder_level").order("name"),
     supabase.from("buildings").select("id,code").eq("project_id", projectId).order("code"),
+    supabase.rpc("fn_reorder_advice", { p_project: projectId }),
   ]);
+  type Advice = { material_name: string; remaining: number; in_stock: number; order_qty: number };
+  const toOrder = ((reorder as Advice[]) ?? []).filter((r) => Number(r.order_qty) > 0);
 
   const mat = new Map((materials ?? []).map((m) => [m.id, m]));
   const rows = (balances ?? []).map((b) => ({ ...b, m: mat.get(b.material_id) }));
@@ -57,6 +60,26 @@ export default async function MaterialsPage({ searchParams }: { searchParams: { 
           {rows.length === 0 && <tr><td colSpan={3} className="py-2 text-neutral-500">No stock yet — log a delivery below.</td></tr>}
         </tbody>
       </table>
+
+      {toOrder.length > 0 && (
+        <section className="rounded-lg border border-amber-300 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950/30">
+          <h2 className="mb-2 text-sm font-medium">BOQ-aware reorder advice (a proposal)</h2>
+          <table className="w-full text-sm">
+            <thead><tr className="text-left text-neutral-500"><th>Material</th><th className="text-right">Remaining need</th><th className="text-right">In stock</th><th className="text-right">Order</th></tr></thead>
+            <tbody>
+              {toOrder.map((r, k) => (
+                <tr key={k}>
+                  <td className="py-1">{r.material_name}</td>
+                  <td className="text-right font-mono">{Number(r.remaining).toLocaleString()}</td>
+                  <td className="text-right font-mono">{Number(r.in_stock).toLocaleString()}</td>
+                  <td className="text-right font-mono font-semibold">{Number(r.order_qty).toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="mt-2 text-xs text-neutral-500">Remaining requirement (recipe − consumed) minus current stock. A proposal — you decide.</p>
+        </section>
+      )}
 
       <LogTxnForm projectId={projectId} materials={materials ?? []} buildings={buildings ?? []} />
     </main>
