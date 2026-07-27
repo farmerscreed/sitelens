@@ -55,3 +55,63 @@ export async function extractBoqFromPdf(pdfBase64: string): Promise<BoqRow[]> {
   const json = text.slice(text.indexOf("["), text.lastIndexOf("]") + 1);
   return JSON.parse(json) as BoqRow[];
 }
+
+const dev = () => (Deno.env.get("DEV_AI_MODE") ?? "true") !== "false";
+
+// AI-2: receipt / waybill OCR → structured fields.
+export type Receipt = { amount: number; date: string; payee: string; confidence: number };
+export async function extractReceipt(imageBase64: string): Promise<Receipt> {
+  const key = Deno.env.get("OPENROUTER_API_KEY");
+  if (dev() || !key) return { amount: 98000, date: "2026-07-20", payee: "BUA Cement", confidence: 0.95 };
+  const model = Deno.env.get("AI_RECEIPT_MODEL") ?? "anthropic/claude-sonnet-5";
+  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${key}`, "content-type": "application/json" },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: "system", content: "Extract {amount, date, payee, confidence} as strict JSON from this receipt. Numbers as numbers." },
+        { role: "user", content: [
+          { type: "text", text: "Extract the receipt fields." },
+          { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } },
+        ] },
+      ],
+    }),
+  });
+  if (!res.ok) throw new Error(`OpenRouter ${res.status}: ${await res.text()}`);
+  const data = await res.json();
+  const t: string = data.choices?.[0]?.message?.content ?? "{}";
+  return JSON.parse(t.slice(t.indexOf("{"), t.lastIndexOf("}") + 1)) as Receipt;
+}
+
+// AI-8: embed a question for retrieval, then answer over retrieved context.
+export async function embed(text: string): Promise<number[]> {
+  const key = Deno.env.get("OPENROUTER_API_KEY");
+  if (dev() || !key) return new Array(1536).fill(0.1); // deterministic stub
+  const res = await fetch("https://openrouter.ai/api/v1/embeddings", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${key}`, "content-type": "application/json" },
+    body: JSON.stringify({ model: Deno.env.get("AI_EMBED_MODEL") ?? "openai/text-embedding-3-small", input: text }),
+  });
+  const data = await res.json();
+  return data.data[0].embedding as number[];
+}
+
+export async function answer(question: string, context: string): Promise<string> {
+  const key = Deno.env.get("OPENROUTER_API_KEY");
+  if (dev() || !key) return `[dev] Based on the data, here is an answer to: "${question}".`;
+  const model = Deno.env.get("AI_QA_MODEL") ?? "anthropic/claude-sonnet-5";
+  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${key}`, "content-type": "application/json" },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: "system", content: "Answer using ONLY the provided SiteLens data. It is arithmetic over the data; if the answer isn't derivable, say so. Do not make decisions for the user." },
+        { role: "user", content: `Data:\n${context}\n\nQuestion: ${question}` },
+      ],
+    }),
+  });
+  const data = await res.json();
+  return data.choices?.[0]?.message?.content ?? "";
+}
