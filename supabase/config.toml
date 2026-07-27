@@ -289,10 +289,14 @@ enabled = true
 uri = "pg-functions://postgres/public/custom_access_token_hook"
 
 # Configure one of the supported SMS providers: `twilio`, `twilio_verify`, `messagebird`, `textlocal`, `vonage`.
+# DEV: a provider must be "enabled" or the CLI disables phone login entirely. These are
+# placeholder values — for the test-OTP phone numbers above, GoTrue returns the fixed
+# code and NEVER calls Twilio. Production swaps this for Termii behind the auth abstraction.
+# Requires: export SUPABASE_AUTH_SMS_TWILIO_AUTH_TOKEN=dev-unused  (before `supabase start`)
 [auth.sms.twilio]
-enabled = false
-account_sid = ""
-message_service_sid = ""
+enabled = true
+account_sid = "dev-account-sid"
+message_service_sid = "dev-message-service-sid"
 # DO NOT commit your Twilio auth token to git. Use environment variable substitution instead:
 auth_token = "env(SUPABASE_AUTH_SMS_TWILIO_AUTH_TOKEN)"
 
