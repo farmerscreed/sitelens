@@ -34,6 +34,11 @@ export default async function Dashboard() {
         <OrgSwitcher orgs={orgs ?? []} />
       </header>
 
+      <nav className="flex gap-4 text-sm">
+        <a className="underline" href="/prices">Price list</a>
+        <span className="text-neutral-400">Catalogue · Recipes · BOQ import (coming in M1)</span>
+      </nav>
+
       <section className="rounded-lg border border-neutral-200 p-4 dark:border-neutral-800">
         <h2 className="mb-2 text-sm font-medium text-neutral-500">Active JWT claims (A0 hook)</h2>
         <dl className="grid grid-cols-[auto,1fr] gap-x-4 gap-y-1 text-sm">

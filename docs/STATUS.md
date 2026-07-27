@@ -22,11 +22,22 @@ Functions for BOQ processing, both Excel+PDF lanes). Build order A0→G.
     showing the decoded claim, OrgSwitcher. **Code-complete but not run on this box**
     (npm install / next dev blocked by slow network + Docker limits). See `apps/web/README.md`.
   - Full clean rebuild still green: **AC-6 49/0, A0 all pass.**
-- **A–G — not started.** Next up: **A** (price write fn `fn_set_material_price` + live
-  cost fn + AC-7 test).
+- **A — price write path + live cost: DONE (verified).**
+  - `supabase/migrations/20260727140000_m1a_price_and_cost.sql`: `fn_set_material_price`
+    (admin-gated, append-only dated, audited — the ONLY write path into `material_prices`,
+    Rule 1) + unique dated-price index; `fn_type_cost` (Σ qty×current_price + stage costs,
+    computed live — Rule 4).
+  - Test `supabase/tests/ac7_price_recost.sql`: **AC-7 PASS** — live re-costing, dated
+    history preserved, future price deferred, authz (cross-org + wrong-material) + audit.
+  - Web: `apps/web/app/prices` + `SetPriceForm` (calls `fn_set_material_price` via RPC,
+    never a direct insert). Code-complete, unrun here.
+- **B–G — not started.** Next up: **B** (recipe write fns + versioning + recipe editor UI).
 
 To re-verify M1 so far, after the M0 rebuild steps below, also run:
-`docker exec -i supabase_db_sitelens psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/a0_token_hook.sql`
+```
+docker exec -i supabase_db_sitelens psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/a0_token_hook.sql
+docker exec -i supabase_db_sitelens psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/ac7_price_recost.sql
+```
 
 ---
 

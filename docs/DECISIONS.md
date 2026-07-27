@@ -101,3 +101,26 @@ logged here so the founder can review drift. Newest at the bottom.
     statement, which would drop it before the INSERT) and is read into plpgsql
     arrays BEFORE `SET ROLE authenticated` (a postgres-owned temp table isn't
     readable as `authenticated`).
+
+## M1
+
+14. **`type_boq_items` left exactly as the PRD defines it (no provenance columns).**
+    Rule 2 (source/confidence/model_id/verified_by on observable values) is satisfied
+    on `boq_import_rows` (which carries `confidence`); the confirmed recipe quantity in
+    `type_boq_items` is a human-confirmed design value, and PRD §16 gives it no such
+    columns. Confirmed with the founder before building M1 — no schema change.
+
+15. **Unique index `material_prices(org_id, material_id, effective_from)`.** Added in
+    workstream A so `fn_set_material_price` can upsert a *same-date* correction and so
+    `current_price()` is deterministic (one price per material per date). A same-date
+    call updates that date's row; it never rewrites a *different* date's history, so the
+    "prices are append-only / old reports unchanged" intent (F-PRICE-2/AC-7) holds.
+
+16. **A0 auth model: `active_org` table + `custom_access_token_hook`.** The PRD says the
+    JWT carries `active_org_id` (§5.2) but not how. Chosen mechanism: a per-user
+    `active_org` row (which org they're acting as); a Supabase custom-access-token hook
+    injects `active_org_id`/`user_role`/`membership_id` at token issue, defaulting to the
+    user's earliest active membership if none set; `fn_set_active_org` switches it (then
+    the client refreshes its session); `fn_my_orgs` (SECURITY DEFINER) lets a user
+    enumerate switchable orgs past the org-scoped `memberships` RLS. Dev logins use a
+    fixed phone-OTP test code (no real SMS).
