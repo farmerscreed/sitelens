@@ -6,8 +6,8 @@ You are building **SiteLens**, a construction planning, management and monitorin
 
 ## ACTIVE MILESTONE
 
-> **Currently building: M1 — Catalogue, price list, recipe library, BOQ import (Excel + PDF), item-mapping memory.**
-> M0 passed its gate (AC-6 verified both routes, 2026-07-27 — see docs/STATUS.md). Do not build ahead of this line. When M1's gate passes, the human updates this line to M2.
+> **Currently building: M2 — Buildings, phases, batches, the board, stage progress.**
+> M0 gate passed (AC-6). M1 gate passed (AC-5 BOQ import + AC-7 re-costing, 2026-07-27 — see docs/STATUS.md). Do not build ahead of this line. When M2's gate passes, the human updates this line to M3.
 
 You work on **one milestone at a time** (M0…M8, defined in PRD §17). Never scaffold future milestones "to save time." Never start the next milestone until the human confirms the current one's acceptance gate has passed.
 
