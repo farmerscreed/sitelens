@@ -5,7 +5,30 @@ session. Newest status at the top of each section._
 
 ---
 
-## M2 progress (current milestone) — COMPLETE (DB verified)
+## M3 progress (current milestone) — COMPLETE (DB verified)
+
+Plan: `docs/M3_PLAN.md`. Gate **AC-8**: correct period-by-period cash requirement, peak,
+and total for a staggered multi-type/multi-batch plan; recompute across 300 < 5 s.
+
+- **Backend (verified):** `m3a_plans` (`fn_create_plan`, `fn_set_plan_line` upsert,
+  `fn_update_plan` — manager-gated, no client write policy). `m3b_feasibility`:
+  `fn_compute_feasibility` (timeline placement, per-period outflow + cumulative +
+  inflows, total, `peak_period_requirement`, `peak_funding`) and `fn_max_delivery`
+  (F-PLAN-5). Quantity is a multiplier → O(lines×stages), fast for 300 (NF-13). Results
+  always computed live (F-PLAN-6).
+- **Test `ac8_feasibility.sql`: PASS** — exact staggered 2-type/2-batch timeline,
+  staggering lowers peak-period (F-PLAN-4), price change re-costs a saved plan live
+  (AC-7 tie), max-delivery arithmetic, authz, 300-qty sanity.
+- **Web:** `app/planner` (scenarios) + `app/planner/[id]` (lines, batch schedule,
+  available cash, live cash-flow timeline + peaks + total, max-delivery view). tsc clean.
+- Full suite green (21 migrations): AC-6, A0, AC-7, B, AC-5, G, M2, **AC-8**.
+
+The human flips `CLAUDE.md` M3→M4 when satisfied. **M4** = daily report + media pipeline
++ offline sync (first Flutter/mobile work).
+
+---
+
+## M2 (complete)
 
 Plan: `docs/M2_PLAN.md`. Gate: **58 buildings stamped from 2 types; board shows each at
 its stage** (built for 300). Decisions locked: stage completion web-driven now (mobile
@@ -88,9 +111,9 @@ board shows each at its stage) — the first consumers of the recipe library + v
 
 ## Where we are
 
-- **Active milestone: M2 (buildings/board) — DONE (DB-verified).** M0, M1, M2 all
-  complete; see the sections above. Next is M3 (feasibility planner) once the human
-  flips the milestone line.
+- **Active milestone: M3 (feasibility planner) — DONE (DB-verified).** M0–M3 all
+  complete; see the sections above. Next is M4 (daily report + media + offline sync,
+  first mobile work) once the human flips the milestone line.
 - **M0 (Supabase project, schema, RLS, auth scaffold) — COMPLETE and VERIFIED.**
 - **M0 acceptance gate AC-6 PASSES** ("Org A cannot read a single row of Org B by any
   route — verified against the API and the database directly"):
@@ -200,12 +223,13 @@ local `psql` isn't installed.
   API test; it can't be removed here due to the Docker restriction. Harmless.
 - `authenticator` role password was set to `postgres` (local only).
 
-## Next: M3 (only after the human flips the milestone line)
+## Next: M4 (only after the human flips the milestone line)
 
-M3 = the feasibility planner (web-first, §7). Funding-required mode first ("what cash do
-I need and when"), then max-delivery mode; saved scenarios (`plans`, `plan_lines`). The
-core is `fn_compute_feasibility(plan_id)` — places each batch's stages on a timeline,
-costs them at live prices (reusing `fn_type_cost`/`current_price`), and returns the
-period-by-period cash requirement + peak + total. Gate (AC-8): a correct cash-flow
-timeline for a staggered multi-type, multi-batch plan; recompute across 300 buildings
-< 5 s (NF-13).
+M4 = daily report + media pipeline + offline sync (§9 F-9, §5.3, §13). This is the
+**first mobile (Flutter/Drift) work** and the hardest engineering (offline-first): local
+SQLite source of truth, an outbox with client-generated UUIDv7 + idempotency_key so a
+retry over flaky 3G never duplicates, the three-derivative photo pipeline
+(thumb/display/original), and geofence/EXIF stamping. Gate (AC-1): an engineer submits a
+complete daily report fully offline; it syncs with no duplicates and no loss. Note: this
+milestone needs decisions on the Flutter app scaffold and whether the sync server is Edge
+Functions vs the existing SECURITY DEFINER fns.

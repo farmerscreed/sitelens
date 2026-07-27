@@ -148,3 +148,20 @@ logged here so the founder can review drift. Newest at the bottom.
     `buildings.building_type_id` to the specific version row passed in. Since
     `fn_new_type_version` creates a NEW `building_types` row, existing buildings keep
     pointing at their original version — F-TYPE-4 holds with no extra bookkeeping.
+
+## M3
+
+21. **"Peak funding requirement" is ambiguous — we return both.** The PRD's peak could
+    mean the max single-period cash need (which drops when you stagger, F-PLAN-4) or the
+    max cumulative capital outstanding, net of inflows. `fn_compute_feasibility` returns
+    `peak_period_requirement` AND `peak_funding`; the UI shows both. If the founder wants
+    one headline number, it's a one-line change. Without inflows, `peak_funding` == total
+    (cumulative spend is monotonic), which is correct.
+
+22. **Feasibility model: quantity is a multiplier, not a per-building loop.** The engine
+    places each plan_line's stages on a timeline once per (type, batch) and multiplies by
+    the line quantity, so a 300-building plan is O(lines × stages) — trivially inside
+    NF-13's 5 s. Stage duration = `ceil(expected_days / period_days)` (default 1 period);
+    a stage's whole cost lands in the period it starts. Assumptions JSONB holds
+    `period_unit`/`period_days`/`batches{hint:{start}}`; inflows are `[{period, amount}]`.
+    Only inputs are stored — results are always recomputed live (F-PLAN-6).
