@@ -14,20 +14,15 @@ export default async function BuildingDetail({ params }: { params: { id: string 
     .single();
   if (!b) redirect("/board");
 
-  const [{ data: stages }, { data: progress }, { data: items }, { data: materials }] = await Promise.all([
+  const [{ data: stages }, { data: progress }, { data: materials }, { data: rva }] = await Promise.all([
     supabase.from("type_stages").select("id,name,sequence").eq("building_type_id", b.building_type_id).order("sequence"),
     supabase.from("building_stage_progress").select("stage_id,status,completed_at").eq("building_id", b.id),
-    supabase.from("type_boq_items").select("stage_id,material_id,quantity,unit").eq("building_type_id", b.building_type_id),
     supabase.from("materials_catalog").select("id,name"),
+    supabase.from("building_req_vs_actual").select("material_id,required,consumed,overrun").eq("building_id", b.id),
   ]);
 
   const statusOf = new Map((progress ?? []).map((p) => [p.stage_id, p.status]));
-  const doneStageIds = new Set((progress ?? []).filter((p) => p.status === "done").map((p) => p.stage_id));
   const matName = (id: string) => (materials ?? []).find((m) => m.id === id)?.name ?? id;
-
-  // Required materials for COMPLETED stages (recipe side). The "consumed" column and
-  // the used>required overrun flag arrive with M5 materials.
-  const required = (items ?? []).filter((i) => i.stage_id && doneStageIds.has(i.stage_id));
 
   return (
     <main className="space-y-5">
@@ -59,24 +54,26 @@ export default async function BuildingDetail({ params }: { params: { id: string 
       </section>
 
       <section>
-        <h2 className="mb-2 text-sm font-medium">
-          Required materials for completed stages
-          <span className="ml-2 text-xs font-normal text-neutral-500">(consumed vs required — coming with M5)</span>
-        </h2>
+        <h2 className="mb-2 text-sm font-medium">Requirement vs actual (completed stages)</h2>
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-neutral-200 text-left dark:border-neutral-800">
               <th className="py-1">Material</th><th className="text-right">Required</th>
+              <th className="text-right">Consumed</th><th className="text-right">Overrun</th>
             </tr>
           </thead>
           <tbody>
-            {required.map((i, k) => (
+            {(rva ?? []).map((r, k) => (
               <tr key={k} className="border-b border-neutral-100 dark:border-neutral-900">
-                <td className="py-1">{matName(i.material_id)}</td>
-                <td className="text-right font-mono">{Number(i.quantity).toLocaleString()} {i.unit}</td>
+                <td className="py-1">{matName(r.material_id)}</td>
+                <td className="text-right font-mono">{Number(r.required).toLocaleString()}</td>
+                <td className="text-right font-mono">{Number(r.consumed).toLocaleString()}</td>
+                <td className={`text-right font-mono ${Number(r.overrun) > 0 ? "text-red-600" : "text-neutral-500"}`}>
+                  {Number(r.overrun) > 0 ? `+${Number(r.overrun).toLocaleString()}` : Number(r.overrun).toLocaleString()}
+                </td>
               </tr>
             ))}
-            {required.length === 0 && <tr><td colSpan={2} className="py-2 text-neutral-500">No completed stages yet.</td></tr>}
+            {(rva ?? []).length === 0 && <tr><td colSpan={4} className="py-2 text-neutral-500">No completed stages or usage yet.</td></tr>}
           </tbody>
         </table>
       </section>
