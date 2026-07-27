@@ -91,3 +91,26 @@ END;
 $$;
 REVOKE EXECUTE ON FUNCTION fn_set_active_org(uuid) FROM anon, public;
 GRANT  EXECUTE ON FUNCTION fn_set_active_org(uuid) TO authenticated;
+
+-- ── list the orgs the current user can act as (for the org switcher) ────────
+-- SECURITY DEFINER because the memberships RLS policy only exposes the CURRENT
+-- org's rows — a user must still be able to enumerate the other orgs they belong
+-- to in order to switch. Scoped strictly to auth.uid()'s own active memberships.
+CREATE OR REPLACE FUNCTION fn_my_orgs()
+RETURNS TABLE (org_id uuid, org_name text, role org_role, is_active_org boolean)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT o.id,
+         o.name::text,
+         m.role,
+         (m.id = (SELECT membership_id FROM active_org WHERE user_id = auth.uid())) AS is_active_org
+  FROM memberships m
+  JOIN organizations o ON o.id = m.org_id
+  WHERE m.user_id = auth.uid() AND m.is_active
+  ORDER BY o.name;
+$$;
+REVOKE EXECUTE ON FUNCTION fn_my_orgs() FROM anon, public;
+GRANT  EXECUTE ON FUNCTION fn_my_orgs() TO authenticated;

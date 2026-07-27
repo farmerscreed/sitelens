@@ -55,6 +55,14 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM active_org WHERE user_id = user_a) THEN
     RAISE WARNING 'fn_set_active_org: user A → org A did not record active_org'; fails := fails+1;
   END IF;
+
+  -- fn_my_orgs lists exactly the caller's active orgs and flags the active one.
+  IF (SELECT count(*) FROM fn_my_orgs()) <> 1 THEN
+    RAISE WARNING 'fn_my_orgs: user A should see exactly 1 org, saw %', (SELECT count(*) FROM fn_my_orgs()); fails := fails+1;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM fn_my_orgs() WHERE org_id = org_a AND is_active_org) THEN
+    RAISE WARNING 'fn_my_orgs: org A not flagged active for user A'; fails := fails+1;
+  END IF;
   PERFORM set_config('request.jwt.claims', NULL, true);
 
   IF fails > 0 THEN
