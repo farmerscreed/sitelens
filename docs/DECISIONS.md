@@ -190,3 +190,24 @@ logged here so the founder can review drift. Newest at the bottom.
     report has no `within_geofence` column; `fn_register_media` computes it per photo
     (`ST_DWithin` vs the project's centroid/radius). A report with flagged photos is what
     triggers PM approval (F-9.5). Backdating > 3 days is rejected outright (F-9.2).
+
+## M5
+
+27. **Expense thresholds in `organizations.settings.expense_thresholds` (JSONB),** default
+    `{pm: 50000, admin: 250000}`. Per-org configurable with no schema change:
+    `fn_approve_expense` requires PM/Admin, and Admin specifically for amounts over the
+    admin threshold; engineers can't approve. Unapproved = `pending` (committed, not
+    spent) — AC-11.
+
+28. **Balance is guarded by a `FOR UPDATE` row lock, never recomputed on read (AC-4).**
+    `fn_log_material_txn` locks the `material_balances` row (creating it at 0 if absent),
+    rejects an OUT that would go negative, and is idempotent on `idempotency_key` so an
+    offline resend never double-counts. `fn_void_material_txn` reverses under the same
+    lock and refuses a reversal that would go negative. **OUT requires a building tag** so
+    requirement-vs-actual is always computable.
+
+29. **Overrun "flag" = an audit_log entry at completion + the live
+    `building_req_vs_actual` view** (PRD §10: "mostly query logic, not new tables").
+    `fn_complete_stage` computes used-vs-required for the completed stage and writes a
+    `stage_overrun` audit row "at the pour" (AC-9); the view shows consumed/required/
+    overrun live on the building card. A dedicated discrepancies table can come later.

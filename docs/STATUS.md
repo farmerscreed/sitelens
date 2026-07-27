@@ -5,7 +5,28 @@ session. Newest status at the top of each section._
 
 ---
 
-## M4 progress (current milestone) — COMPLETE (backend verified; Flutter scaffolded)
+## M5 progress (current milestone) — COMPLETE (DB verified)
+
+Plan: `docs/M5_PLAN.md`. Gates **AC-4** (balances never negative), **AC-9** (stage
+overrun flags at completion), **AC-11** (no spend without approval).
+
+- **Backend (verified):** `m5a_materials` (`fn_log_material_txn` — FOR UPDATE row-locked
+  balance, negative-stock rejection, idempotent, reorder alert; `fn_void_material_txn`;
+  `fn_transfer_material`; `fn_upsert_material`). `m5b_expenses` (`fn_create_expense`
+  pending; `fn_approve_expense` threshold authority; `fn_void_expense`). `m5c_req_actual`
+  (`building_req_vs_actual` view + `fn_complete_stage` overrun flag). No client write
+  policy (Rule 1).
+- **Tests PASS:** `ac4_material_balance`, `ac9_overrun`, `ac11_expense_approval`.
+- **Web:** `app/materials` (balances + reorder + log IN/OUT), `app/expenses`
+  (create/approve/void), building card **consumed-vs-required** (M2 seam closed). tsc clean.
+- Full suite green (25 migrations, 12 suites): + AC-4, AC-9, AC-11.
+
+The human flips `CLAUDE.md` M5→M6 when satisfied. **M6** = AI (dup-photo hash, receipt/
+BOQ OCR, quality gate, questions, reorder advice).
+
+---
+
+## M4 (complete) — backend verified; Flutter scaffolded
 
 Plan: `docs/M4_PLAN.md`. Gate **AC-1**: an engineer submits a daily report fully offline;
 it syncs with no duplicates and no loss.
@@ -135,9 +156,9 @@ board shows each at its stage) — the first consumers of the recipe library + v
 
 ## Where we are
 
-- **Active milestone: M4 (daily report + offline sync) — DONE (backend verified,
-  Flutter scaffolded).** M0–M4 all complete; see the sections above. Next is M5
-  (materials + expenses + requirement-vs-actual) once the human flips the milestone line.
+- **Active milestone: M5 (materials + expenses + req-vs-actual) — DONE (DB-verified).**
+  M0–M5 all complete; see the sections above. Next is M6 (AI features) once the human
+  flips the milestone line.
 - **M0 (Supabase project, schema, RLS, auth scaffold) — COMPLETE and VERIFIED.**
 - **M0 acceptance gate AC-6 PASSES** ("Org A cannot read a single row of Org B by any
   route — verified against the API and the database directly"):
@@ -247,13 +268,13 @@ local `psql` isn't installed.
   API test; it can't be removed here due to the Docker restriction. Harmless.
 - `authenticator` role password was set to `postgres` (local only).
 
-## Next: M5 (only after the human flips the milestone line)
+## Next: M6 (only after the human flips the milestone line)
 
-M5 = materials + expenses + approvals + requirement-vs-actual (§9 F-10/F-11, §10). This
-**closes the M2 board's "consumed vs required" seam** and is heavily money-path (Rule 1):
-material IN/OUT via `fn_log_material_txn` with a row-locked running balance that can never
-go negative (F-10.4/5), void-with-reason, expenses with approval thresholds
-(`fn_create_expense`/`fn_approve_expense`), and the requirement-vs-actual overrun flag at
-stage completion (wires into M2's `fn_complete_stage`). Gates: AC-4 (balances always
-accurate, never negative) and AC-9 (stage overrun flags at completion). Also AC-11
-(expenses above threshold can't be spent without approval).
+M6 = AI features (§11.4): AI-1 duplicate-photo detection (perceptual hash, no model —
+build first), AI-2/7 receipt + PDF-BOQ OCR (vision LLM → structured; the M1 PDF lane's
+real model), AI-3 photo quality gate (on-device), AI-8 natural-language questions (RAG
+over structured data + reports via pgvector), AI-9 BOQ-aware reorder advice (remaining
+requirement + schedule + stock → order proposal, building on M5 balances + M1 recipes).
+All behind the OpenRouter router with `DEV_AI_MODE` stubs (no paid key in tests). Gates:
+AC-3 (resubmitted old photo flagged) and reorder advice matches remaining BOQ.
+`ai_inferences`/`ai_models`/`report_embeddings` tables already exist (M0).
