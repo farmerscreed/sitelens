@@ -27,7 +27,7 @@ export default async function RecipeDetail({ params }: { params: { id: string } 
       items={items ?? []}
       costs={costs ?? []}
       materials={materials ?? []}
-      cost={cost ?? { materials_cost: 0, nonmaterial_cost: 0, total_cost: 0 }}
+      cost={(cost as { materials_cost: number; nonmaterial_cost: number; total_cost: number } | null) ?? { materials_cost: 0, nonmaterial_cost: 0, total_cost: 0 }}
     />
   );
 }

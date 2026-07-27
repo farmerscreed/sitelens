@@ -1,5 +1,7 @@
-import { createServerClient } from "@supabase/ssr";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+
+type CookieToSet = { name: string; value: string; options?: CookieOptions };
 
 // Keeps the Supabase session fresh on every request (refresh token rotation) so
 // server components always see a valid session + up-to-date claims.
@@ -14,10 +16,10 @@ export async function middleware(request: NextRequest) {
         getAll() {
           return request.cookies.getAll();
         },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+        setAll(cookiesToSet: CookieToSet[]) {
+          cookiesToSet.forEach(({ name, value }: CookieToSet) => request.cookies.set(name, value));
           response = NextResponse.next({ request });
-          cookiesToSet.forEach(({ name, value, options }) =>
+          cookiesToSet.forEach(({ name, value, options }: CookieToSet) =>
             response.cookies.set(name, value, options),
           );
         },
