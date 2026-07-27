@@ -1,0 +1,11 @@
+# Flutter/Dart
+.dart_tool/
+.packages
+build/
+*.g.dart          # generated (drift) — run build_runner
+.flutter-plugins
+.flutter-plugins-dependencies
+pubspec.lock
+android/
+ios/
+.idea/

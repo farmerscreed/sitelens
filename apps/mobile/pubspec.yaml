@@ -1,0 +1,31 @@
+name: sitelens_mobile
+description: SiteLens field app (Android 8+) — offline-first daily reports.
+publish_to: "none"
+version: 0.1.0+1
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  drift: ^2.20.0                 # local SQLite source of truth (§13.1)
+  sqlite3_flutter_libs: ^0.5.24
+  path_provider: ^2.1.4
+  path: ^1.9.0
+  uuid: ^4.5.1                   # UUIDv7 (§13.2)
+  http: ^1.2.2                   # Supabase REST/RPC
+  connectivity_plus: ^6.0.5      # detect reconnect → drain outbox
+  geolocator: ^13.0.1            # GPS stamp + geofence (F-9.4/9.5)
+  camera: ^0.11.0                # in-app capture only (F-9.3)
+  image: ^4.2.0                  # three derivatives (thumb/display/original) (§5.3)
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  drift_dev: ^2.20.0
+  build_runner: ^2.4.12
+
+flutter:
+  uses-material-design: true
