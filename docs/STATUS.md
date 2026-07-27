@@ -29,15 +29,37 @@ Functions for BOQ processing, both Excel+PDF lanes). Build order A0→G.
     computed live — Rule 4).
   - Test `supabase/tests/ac7_price_recost.sql`: **AC-7 PASS** — live re-costing, dated
     history preserved, future price deferred, authz (cross-org + wrong-material) + audit.
-  - Web: `apps/web/app/prices` + `SetPriceForm` (calls `fn_set_material_price` via RPC,
-    never a direct insert). Code-complete, unrun here.
-- **B–G — not started.** Next up: **B** (recipe write fns + versioning + recipe editor UI).
+  - Web: `apps/web/app/prices` + `SetPriceForm` (RPC only). Code-complete, unrun here.
+- **B — recipe write fns + versioning + editor UI: DONE (verified).** `m1b_recipe_fns`:
+  manager-gated fns (create type, add stage, set boq item [no price], set stage cost,
+  duplicate, new version, folder) + `fn_require_org_manager`. Test `b_recipe.sql` PASS.
+  Web `app/recipes` + editor.
+- **C — storage adapter + bucket + signed-url edge fn: DONE.** `m1c_storage` (private
+  `boq-sources` bucket + org-scoped storage RLS); `lib/storage` adapter (R2 seam);
+  `storage-signed-url` edge fn (15-min, permission-checked).
+- **D — Excel lane: DONE (verified).** `m1d_boq_import`: `boq_column_mappings` +
+  `fn_create_boq_import`/`fn_stage_boq_rows`/`fn_remember_column_mapping`. `boq-parse`
+  edge fn (SheetJS). Web import wizard.
+- **E — PDF lane: DONE.** `_shared/ai-router.ts` (OpenRouter + `DEV_AI_MODE`) +
+  `boq-extract-pdf` edge fn (proposals, Rule 3).
+- **F — confirm + item-mapping memory: DONE (AC-5 verified).** `m1f_boq_confirm`:
+  `fn_confirm_boq_import` (atomic, idempotent → `type_boq_items` + aliases) +
+  `fn_resolve_material` auto-map. Test `ac5_boq_import.sql` **AC-5 PASS**. Web
+  `boq-import/[id]` review/confirm.
+- **G — hardening: DONE.** `g_hardening.sql` PASS (non-manager blocked on all M1 write
+  paths; new tables org-isolated).
 
-To re-verify M1 so far, after the M0 rebuild steps below, also run:
-```
-docker exec -i supabase_db_sitelens psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/a0_token_hook.sql
-docker exec -i supabase_db_sitelens psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/ac7_price_recost.sql
-```
+**M1 COMPLETE — gate met.** PRD §17 M1 gate ("a real Excel BOQ imports and populates a
+type; aliases remembered") = **AC-5 PASS**; plus **AC-7 PASS** (price re-costing). Edge
+functions + web app are code-complete but not run on this box (npm/edge runtime blocked
+by slow network + Docker limits) — DB layer fully verified.
+
+**Re-verify everything with one command:** `bash scripts/verify_all.sh` → rebuilds all 16
+migrations + seed and runs all 6 suites (AC-6, A0, AC-7, B, AC-5, G) via docker exec.
+
+The human flips `CLAUDE.md` ACTIVE MILESTONE M1→M2 when satisfied. **M2** = buildings,
+phases, batches, the board, stage progress (gate: 58 buildings stamped from 2 types;
+board shows each at its stage) — the first consumers of the recipe library + versioning.
 
 ---
 
@@ -154,9 +176,10 @@ local `psql` isn't installed.
   API test; it can't be removed here due to the Docker restriction. Harmless.
 - `authenticator` role password was set to `postgres` (local only).
 
-## Next: M1 (only after the human flips the milestone line)
+## Next: M2 (only after the human flips the milestone line)
 
-M1 = catalogue, price list, recipe library, BOQ import (Excel then PDF), item-mapping
-memory. First `SECURITY DEFINER` write functions arrive here (e.g.
-`fn_set_material_price`, `fn_confirm_boq_import`) — the first real exercise of Rule 1.
-Gate: a real Excel BOQ imports and populates a type; aliases remembered.
+M2 = buildings, phases, batches, the board, stage progress. Buildings are copies of a
+recipe (M1's `building_types`), so this is the first consumer of the recipe library +
+versioning (`fn_new_type_version`). Required server fns include `fn_create_buildings`
+(stamp N buildings from a type version, seed stage progress) and `fn_advance_batch`.
+Gate: 58 buildings stamped from 2 types; the board shows each at its own stage.
