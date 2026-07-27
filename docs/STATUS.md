@@ -5,16 +5,41 @@ session. Newest status at the top of each section._
 
 ---
 
+## M1 progress (current milestone)
+
+Plan: `docs/M1_PLAN.md` (scope locked: full Next.js+Tailwind web app, Supabase Edge
+Functions for BOQ processing, both Excel+PDF lanes). Build order A0→G.
+
+- **A0 — auth token hook + login/org-switch: DONE (DB verified).**
+  - `supabase/migrations/20260727130000_m1a0_auth_token_hook.sql`: `active_org` table,
+    `custom_access_token_hook` (injects `active_org_id`/`user_role`/`membership_id` into
+    the JWT so real GoTrue logins satisfy RLS), `fn_set_active_org` (org switch, authz),
+    `fn_my_orgs` (enumerate switchable orgs past the org-scoped RLS).
+  - `config.toml`: custom access-token hook enabled; dev phone-OTP test codes (no real SMS).
+  - Test `supabase/tests/a0_token_hook.sql`: **ALL PASS** (hook injects correct org/role,
+    authz rejects non-member switch, switching flips the claim, fn_my_orgs correct).
+  - Web scaffold `apps/web/` (Next.js App Router + Tailwind): login (phone OTP), dashboard
+    showing the decoded claim, OrgSwitcher. **Code-complete but not run on this box**
+    (npm install / next dev blocked by slow network + Docker limits). See `apps/web/README.md`.
+  - Full clean rebuild still green: **AC-6 49/0, A0 all pass.**
+- **A–G — not started.** Next up: **A** (price write fn `fn_set_material_price` + live
+  cost fn + AC-7 test).
+
+To re-verify M1 so far, after the M0 rebuild steps below, also run:
+`docker exec -i supabase_db_sitelens psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/a0_token_hook.sql`
+
+---
+
 ## Where we are
 
-- **Milestone: M0 (Supabase project, schema, RLS, auth scaffold) — COMPLETE and VERIFIED.**
-- **Acceptance gate AC-6 PASSES** ("Org A cannot read a single row of Org B by any
+- **Active milestone: M1** (the human flipped `CLAUDE.md` M0→M1 on 2026-07-27). M1/A0 is
+  done (DB-verified); see the M1 progress section above.
+- **M0 (Supabase project, schema, RLS, auth scaffold) — COMPLETE and VERIFIED.**
+- **M0 acceptance gate AC-6 PASSES** ("Org A cannot read a single row of Org B by any
   route — verified against the API and the database directly"):
   - Direct DB route: **49 checks, 0 leaks**.
   - API route (PostgREST): **32 checks, 0 leaks**.
-- The `ACTIVE MILESTONE` line in `CLAUDE.md` still says M0. **Per project rules the
-  human flips it to M1** once satisfied — do not advance past it on your own.
-- Git: initialised; M0 committed. Run `git log --oneline` to see commits.
+- Git: M0 + M1/A0 committed. Run `git log --oneline` to see commits.
 
 ## What M0 delivered (file map)
 
