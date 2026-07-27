@@ -124,3 +124,27 @@ logged here so the founder can review drift. Newest at the bottom.
     the client refreshes its session); `fn_my_orgs` (SECURITY DEFINER) lets a user
     enumerate switchable orgs past the org-scoped `memberships` RLS. Dev logins use a
     fixed phone-OTP test code (no real SMS).
+
+## M2
+
+17. **Stage completion is web-driven in M2; mobile field capture wraps the same
+    `fn_complete_stage` in M4.** F-BOARD-4 describes the engineer marking a stage from
+    the field (mobile), but the Flutter app is an M4 deliverable. Confirmed with the
+    founder: a PM/engineer marks & approves from the web now; the board gate is met
+    web-side, no premature mobile work.
+
+18. **Requirement-vs-actual: required (recipe) side in M2, actual + overrun flag in
+    M5.** The "actual" needs material consumption (material OUT tagged to building+
+    stage), an M5 deliverable. M2 shows required materials for completed stages and
+    leaves a clean seam; F-BOARD-5's overrun flag wires in with M5. Confirmed.
+
+19. **`board_view` uses `security_invoker = on`.** On PG15+ a view evaluates underlying
+    RLS as the view owner by default; `security_invoker` makes it evaluate as the
+    querying user, so org isolation still holds through the board. Board column is
+    derived from `current_stage_id` + building status ('Not started' / stage name /
+    'Done').
+
+20. **Building version is stamped by FK, automatically.** `fn_create_buildings` sets
+    `buildings.building_type_id` to the specific version row passed in. Since
+    `fn_new_type_version` creates a NEW `building_types` row, existing buildings keep
+    pointing at their original version — F-TYPE-4 holds with no extra bookkeeping.

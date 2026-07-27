@@ -5,10 +5,33 @@ session. Newest status at the top of each section._
 
 ---
 
-## M1 progress (current milestone)
+## M2 progress (current milestone) — COMPLETE (DB verified)
 
-Plan: `docs/M1_PLAN.md` (scope locked: full Next.js+Tailwind web app, Supabase Edge
-Functions for BOQ processing, both Excel+PDF lanes). Build order A0→G.
+Plan: `docs/M2_PLAN.md`. Gate: **58 buildings stamped from 2 types; board shows each at
+its stage** (built for 300). Decisions locked: stage completion web-driven now (mobile
+in M4); requirement-vs-actual shows the required side now (actual + overrun in M5).
+
+- **Backend (verified):** `m2a_buildings` (`fn_create_buildings` stamps N from a type
+  version + seeds `building_stage_progress`; `fn_create_phase`, `fn_create_batch`),
+  `m2c_stage_progress` (`fn_complete_stage`), `m2d_batches_board` (`fn_advance_batch`
+  manual/logged, `fn_batch_cost`, `board_view` with `security_invoker`). All
+  manager-gated, no client write policy (Rule 1).
+- **Test `m2_buildings_board.sql`: PASS** — 58 buildings, stage progress seeded, board
+  spread across columns, version stamping keeps old version, batch advance+cost, authz,
+  300-scale sanity.
+- **Web:** `app/board` (columns by stage, filter by batch/type, stamp, start-batch,
+  complete-stage per card) + `app/buildings/[id]` (stage progress + required materials
+  for completed stages). tsc clean; unrun on this box.
+- Full suite green (19 migrations): AC-6, A0, AC-7, B, AC-5, G, **M2**.
+
+The human flips `CLAUDE.md` M2→M3 when satisfied. **M3** = feasibility planner (cash-flow).
+
+---
+
+## M1 (complete)
+
+Plan: `docs/M1_PLAN.md` (full Next.js+Tailwind web app, Supabase Edge Functions for BOQ,
+both Excel+PDF lanes). Build order A0→G.
 
 - **A0 — auth token hook + login/org-switch: DONE (DB verified).**
   - `supabase/migrations/20260727130000_m1a0_auth_token_hook.sql`: `active_org` table,
@@ -65,8 +88,9 @@ board shows each at its stage) — the first consumers of the recipe library + v
 
 ## Where we are
 
-- **Active milestone: M1** (the human flipped `CLAUDE.md` M0→M1 on 2026-07-27). M1/A0 is
-  done (DB-verified); see the M1 progress section above.
+- **Active milestone: M2 (buildings/board) — DONE (DB-verified).** M0, M1, M2 all
+  complete; see the sections above. Next is M3 (feasibility planner) once the human
+  flips the milestone line.
 - **M0 (Supabase project, schema, RLS, auth scaffold) — COMPLETE and VERIFIED.**
 - **M0 acceptance gate AC-6 PASSES** ("Org A cannot read a single row of Org B by any
   route — verified against the API and the database directly"):
@@ -176,10 +200,12 @@ local `psql` isn't installed.
   API test; it can't be removed here due to the Docker restriction. Harmless.
 - `authenticator` role password was set to `postgres` (local only).
 
-## Next: M2 (only after the human flips the milestone line)
+## Next: M3 (only after the human flips the milestone line)
 
-M2 = buildings, phases, batches, the board, stage progress. Buildings are copies of a
-recipe (M1's `building_types`), so this is the first consumer of the recipe library +
-versioning (`fn_new_type_version`). Required server fns include `fn_create_buildings`
-(stamp N buildings from a type version, seed stage progress) and `fn_advance_batch`.
-Gate: 58 buildings stamped from 2 types; the board shows each at its own stage.
+M3 = the feasibility planner (web-first, §7). Funding-required mode first ("what cash do
+I need and when"), then max-delivery mode; saved scenarios (`plans`, `plan_lines`). The
+core is `fn_compute_feasibility(plan_id)` — places each batch's stages on a timeline,
+costs them at live prices (reusing `fn_type_cost`/`current_price`), and returns the
+period-by-period cash requirement + peak + total. Gate (AC-8): a correct cash-flow
+timeline for a staggered multi-type, multi-batch plan; recompute across 300 buildings
+< 5 s (NF-13).
