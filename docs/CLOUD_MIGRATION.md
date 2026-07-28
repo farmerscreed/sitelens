@@ -50,11 +50,23 @@ cloud-move time. Append as we go. Region target: managed Supabase, London
 - **Access token used for the push was exposed in chat → REVOKE it** (dashboard → Account
   → Access Tokens). Never store tokens here.
 
+### Done on cloud (2026-07-28)
+- [x] Schema: all 28 migrations. Storage buckets `boq-sources` + `report-media` (private).
+- [x] **Edge functions deployed** (ACTIVE, verify_jwt=false — each does its own/DB auth):
+      `storage-signed-url`, `ask`, `receipt-ocr`, `boq-extract-pdf`, `boq-parse`.
+- [x] **Secrets set:** `OPENROUTER_API_KEY`, `DEV_AI_MODE=false`, `RESEND_API_KEY`.
+      (Edge funcs auto-get SUPABASE_URL / ANON / SERVICE_ROLE.)
+- [x] **Auth `custom_access_token` hook enabled** → real logins carry `active_org_id`.
+- [x] `pg_cron` weekly digest registered.
+
 ### Remaining Phase-0 (before real data / pilot) — see docs/M8_PILOT.md
-- [ ] Enable **PITR** + do a restore drill (SEC-12 / AC-16).
-- [ ] Create **R2** buckets (`boq-sources`, `report-media`); set STORAGE_PROVIDER=r2 + keys.
-- [ ] Deploy edge functions (`boq-parse`, `boq-extract-pdf`, `storage-signed-url`,
-      `receipt-ocr`, `ask`); set their secrets; DEV_AI_MODE=false + OpenRouter key.
-- [ ] Enable the `custom_access_token` auth hook on cloud; switch OTP to **Termii**.
-- [ ] Set `.env` for `apps/web` (URL + anon key) and deploy; build `apps/mobile` for cloud.
+- [ ] Enable **PITR** + do a restore drill (SEC-12 / AC-16) — dashboard (may need a paid plan).
+- [ ] **Phone OTP → Termii:** add the Termii provider + key in Auth settings (login won't
+      send OTP until then; email OTP works meanwhile).
+- [ ] Paste `SUPABASE_SERVICE_ROLE_KEY` / `SUPABASE_JWT_SECRET` / DB password into local `.env`
+      (for admin scripts / running the test suite against cloud).
+- [ ] Provision **org #1** (founder + members + real recipes/prices/buildings + portal links).
+- [ ] Deploy `apps/web` (env already points at cloud); build `apps/mobile` for cloud.
+- [ ] R2 is OPTIONAL for the pilot (Supabase Storage works); swap later for zero-egress.
 - [ ] Execute processor DPAs/SCCs before real personal data (SEC-1); start WhatsApp BSP.
+- [ ] **Revoke the `sbp_…` access token** used for the push (exposed in chat).
