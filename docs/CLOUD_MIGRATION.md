@@ -70,3 +70,11 @@ cloud-move time. Append as we go. Region target: managed Supabase, London
 - [ ] R2 is OPTIONAL for the pilot (Supabase Storage works); swap later for zero-egress.
 - [ ] Execute processor DPAs/SCCs before real personal data (SEC-1); start WhatsApp BSP.
 - [ ] **Revoke the `sbp_…` access token** used for the push (exposed in chat).
+
+### Provisioned (2026-07-28)
+- **Org #1: Vantara International** (id `10000000-…-0001`). Admin = the founder, login by
+  phone OTP (Termii). Starter data: project "Pilot Estate" (6 buildings), recipe "Terrace
+  Type A" (5 stages, BOQ items), dated price list, budget line. All swappable in-app.
+- **Edge fns incl. `send-sms`** deployed; **phone auth + Termii send-sms hook enabled**.
+- **Repo:** github.com/farmerscreed/sitelens (private). Web deploy = import to Vercel with
+  Root Directory `apps/web` + NEXT_PUBLIC_SUPABASE_URL / _ANON_KEY.
