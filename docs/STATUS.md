@@ -5,7 +5,18 @@ session. Newest status at the top of each section._
 
 ---
 
-## M7 progress (current milestone) — COMPLETE (DB verified; edge/notify dev-mode)
+## M8 (current milestone) — PILOT (operational, not a feature build)
+
+Runbook: `docs/M8_PILOT.md`. M8 = cloud cutover → provision org #1 → **21 consecutive
+days of real reports** → an adversarial break-it pass (12 attacks mapped to the Golden
+Rules / ACs) → exit gate. No new migrations/tests here; the buildable product (M0–M7) is
+done and green. Confirm on real usage: AC-2 (media derivatives), AC-14 (report < 90 s),
+AC-16 (PITR restore). Start the WhatsApp BSP application early (long lead). This needs the
+founder's live project + cloud infra + real keys — see `docs/CLOUD_MIGRATION.md`.
+
+---
+
+## M7 (complete) — DB verified; edge/notify dev-mode
 
 Plan: `docs/M7_PLAN.md`. Gate **AC-13**: client opens portal with link+PIN (no account);
 revocable; every access logged.
@@ -198,9 +209,10 @@ board shows each at its stage) — the first consumers of the recipe library + v
 
 ## Where we are
 
-- **Active milestone: M7 (client portal + notifications + digest) — DONE (DB-verified).**
-  M0–M7 all complete; see the sections above. Next is M8 (pilot on the live project —
-  the real gate) once the human flips the milestone line.
+- **Active milestone: M8 — the pilot (operational).** M0–M7 (all buildable milestones)
+  are COMPLETE and verified; see the sections above. M8 is the live run per
+  `docs/M8_PILOT.md` — cloud cutover + 21 days + break-it. No further product build is
+  gated behind it; it's real-world validation.
 - **M0 (Supabase project, schema, RLS, auth scaffold) — COMPLETE and VERIFIED.**
 - **M0 acceptance gate AC-6 PASSES** ("Org A cannot read a single row of Org B by any
   route — verified against the API and the database directly"):

@@ -6,8 +6,8 @@ You are building **SiteLens**, a construction planning, management and monitorin
 
 ## ACTIVE MILESTONE
 
-> **Currently building: M7 — Client portal + notifications + weekly digest.**
-> M0 (AC-6), M1 (AC-5/AC-7), M2 (board), M3 (AC-8), M4 (AC-1), M5 (AC-4/9/11), M6 (AC-3/reorder) all passed — see docs/STATUS.md. Do not build ahead of this line. When M7's gate passes, the human updates this line to M8.
+> **Currently building: M8 — Pilot on the founder's live project (the real gate).**
+> M0–M7 all passed and verified (see docs/STATUS.md). M8 is operational, not a feature build: cloud cutover + 21 consecutive days of real reports + an adversarial break-it pass. Runbook: docs/M8_PILOT.md.
 
 You work on **one milestone at a time** (M0…M8, defined in PRD §17). Never scaffold future milestones "to save time." Never start the next milestone until the human confirms the current one's acceptance gate has passed.
 
