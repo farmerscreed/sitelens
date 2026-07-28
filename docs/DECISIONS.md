@@ -237,3 +237,23 @@ logged here so the founder can review drift. Newest at the bottom.
     `extractReceipt`/`embed`/`answer` return deterministic stubs in dev (no paid key, no
     external call in tests); model ids are env config, never hardcoded (§11.3). Edge fns
     `receipt-ocr` and `ask` are code-complete (not run on this box).
+
+## M7
+
+34. **`fn_portal_view` RETURNS errors, never RAISEs.** A `RAISE` inside the function
+    would roll back the access-log INSERT along with the failing call, so failed PIN
+    attempts wouldn't be recorded. Returning `{error: …}` keeps the log (F-13.5/SEC-11).
+    It is SECURITY DEFINER, granted to `anon` (the portal never authenticates as a user),
+    and hand-selects only safe columns — structurally no supplier/price/worker leak.
+
+35. **Token hashed sha256, PIN bcrypt (`crypt`/`gen_salt('bf')`).** Both stored hashed at
+    rest (SEC-11); the token+PIN are returned once at creation. **pgcrypto lives in the
+    `extensions` schema** in Supabase, so the portal functions use
+    `search_path = public, extensions` (else `gen_random_bytes`/`digest`/`crypt` aren't
+    found).
+
+36. **Notifications go through `dev_outbox` + `fn_notify` in dev.** Same interface as
+    production (which swaps to WhatsApp/SMS/Resend); nothing external is called in tests.
+    The weekly digest (`fn_run_weekly_digests`) is scheduled with **pg_cron** (Fri 06:00),
+    registered best-effort so `db reset` never breaks if scheduling is unavailable — must
+    be verified after the cloud move (noted in CLOUD_MIGRATION.md).

@@ -10,9 +10,10 @@ cloud-move time. Append as we go. Region target: managed Supabase, London
 - **Extensions on cloud.** `postgis`, `vector`, `pg_cron` must be enabled on the
   managed project (pgcrypto is default). They are in the first migration, but some
   managed setups require enabling `pg_cron` from the dashboard/`ALTER SYSTEM`.
-- **pg_cron jobs.** Any `cron.schedule(...)` jobs (nightly AI batch M6, etc.) must
-  be re-registered on cloud — cron entries live in the DB but should be verified
-  after restore. None exist yet.
+- **pg_cron jobs.** Verify after restore. As of M7 there is one: `sitelens-weekly-digest`
+  (Fri 06:00, `SELECT fn_run_weekly_digests()`), registered best-effort by
+  `20260728010000_m7b_digest.sql`. Confirm pg_cron runs in the cloud DB and the schedule
+  is in the org timezone (WAT). More nightly AI batch jobs (anomaly, etc.) land later.
 - **Object storage adapter → R2.** Local uses Supabase Storage; production swaps to
   Cloudflare R2 (zero-egress, PRD §5.3). The **R2 bucket must be created** and its
   keys placed in `.env`. App code calls the storage interface only — no provider

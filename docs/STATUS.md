@@ -5,7 +5,27 @@ session. Newest status at the top of each section._
 
 ---
 
-## M6 progress (current milestone) — COMPLETE (backend verified; edge AI stubbed)
+## M7 progress (current milestone) — COMPLETE (DB verified; edge/notify dev-mode)
+
+Plan: `docs/M7_PLAN.md`. Gate **AC-13**: client opens portal with link+PIN (no account);
+revocable; every access logged.
+
+- **Backend (verified):** `m7a_portal` — `fn_create_portal_link` (token sha256 + PIN
+  bcrypt, shown once), `fn_portal_view` (anon, token-keyed, logs every access, RETURNS
+  errors so the log persists, safe columns only — no supplier/price/worker), `fn_revoke`/
+  `fn_renew`; `dev_outbox` + `fn_notify`. `m7b_digest` — `fn_project_weekly_summary`,
+  `fn_spend_anomaly`, `fn_run_weekly_digests` + **pg_cron** `sitelens-weekly-digest`.
+- **Tests PASS:** `ac13_portal`, `m7_notify`.
+- **Web:** public `app/portal/[token]` (PIN → safe view), `app/portal-links`
+  (create/revoke/last-opened), `app/notifications` (dev outbox). tsc clean.
+- Full suite green (28 migrations, 17 suites): + AC-13, notify/digest.
+
+The human flips `CLAUDE.md` M7→M8 when satisfied. **M8** = pilot on the founder's live
+project (the real gate) — run for 21 days and have someone try to defeat it.
+
+---
+
+## M6 (complete)
 
 Plan: `docs/M6_PLAN.md`. Gates: **AC-3** (resubmitted photo flagged) + **reorder advice
 matches remaining BOQ**.
@@ -178,9 +198,9 @@ board shows each at its stage) — the first consumers of the recipe library + v
 
 ## Where we are
 
-- **Active milestone: M6 (AI features) — DONE (backend verified; edge stubbed).**
-  M0–M6 all complete; see the sections above. Next is M7 (client portal + notifications
-  + weekly digest) once the human flips the milestone line.
+- **Active milestone: M7 (client portal + notifications + digest) — DONE (DB-verified).**
+  M0–M7 all complete; see the sections above. Next is M8 (pilot on the live project —
+  the real gate) once the human flips the milestone line.
 - **M0 (Supabase project, schema, RLS, auth scaffold) — COMPLETE and VERIFIED.**
 - **M0 acceptance gate AC-6 PASSES** ("Org A cannot read a single row of Org B by any
   route — verified against the API and the database directly"):
@@ -290,13 +310,13 @@ local `psql` isn't installed.
   API test; it can't be removed here due to the Docker restriction. Harmless.
 - `authenticator` role password was set to `postgres` (local only).
 
-## Next: M7 (only after the human flips the milestone line)
+## Next: M8 — pilot on the live project (the real gate)
 
-M7 = client portal + notifications + weekly digest (§F-13, §5.4, AI-4/5). Read-only
-tokenised portal per recipient (link + 6-digit PIN, 90-day expiry, revocable, every
-access logged — F-13/SEC-11) served via a token-keyed SECURITY DEFINER function (the
-portal never authenticates as a user, never exposes supplier names/unit prices/worker
-data). Notifications behind an abstraction with a dev-mode `dev_outbox` (WhatsApp/SMS/
-Resend). Weekly digest (AI-4) + spend-anomaly notes (AI-5) as nightly LLM jobs (pg_cron).
-Gate (AC-13): a client opens the portal with link + PIN, no account; link is revocable;
-every access logged. `portal_links`/`portal_access_log` tables exist (M0).
+M8 is not a feature build — it's the pilot (PRD §17): run SiteLens on the founder's own
+buildings for **21 consecutive days of real reports**, and instruct someone to actively
+try to defeat it (fake a report, double-log a delivery, sneak an over-threshold expense).
+What they find is worth more than another month of features. This is the point where the
+system moves to managed cloud Supabase (PITR on — SEC-12/AC-16) and the deferred external
+services get real keys (Termii, R2, OpenRouter, WhatsApp BSP) — see CLOUD_MIGRATION.md.
+Also fold in the remaining acceptance criteria not yet exercised end-to-end (AC-2 media
+derivatives, AC-14 median report < 90 s, AC-16 restore drill) against real usage.
