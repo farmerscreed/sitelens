@@ -1,5 +1,8 @@
 # CLOUD_MIGRATION — things to do when moving local → managed Supabase
 
+> Secrets (access tokens, service keys) NEVER go in this file or any git-tracked file —
+> keep them in a local `.env` (git-ignored) only.
+
 Local dev and managed cloud must differ ONLY in `.env` values (CLAUDE.md:
 "portability is sacred"). This file lists everything that will need attention at
 cloud-move time. Append as we go. Region target: managed Supabase, London
@@ -35,3 +38,23 @@ cloud-move time. Append as we go. Region target: managed Supabase, London
   documented restore (SEC-12 / AC-16), quarterly.
 - **DPAs / NDPA.** Execute Supabase, Cloudflare, Resend, Termii and inference-
   provider DPAs with SCCs; UK-storage disclosure in the privacy notice (SEC-1/2).
+
+## Cloud deploy status (updated 2026-07-28)
+
+- **Project:** `SiteLens` · ref `gwzpqnnwflwkcrowolgx` · region **eu-west-2 (London)** ·
+  Postgres 17.6 · org `lawone`.
+- **Schema pushed:** all 28 migrations applied. Verified: 44 SiteLens tables (RLS on every
+  one; only PostGIS `spatial_ref_sys` without RLS, expected), 55 `fn_*` functions,
+  `sitelens-weekly-digest` pg_cron job registered. pgcrypto in `extensions`, postgis/vector
+  in `public`, pg_cron in `cron` — matches local.
+- **Access token used for the push was exposed in chat → REVOKE it** (dashboard → Account
+  → Access Tokens). Never store tokens here.
+
+### Remaining Phase-0 (before real data / pilot) — see docs/M8_PILOT.md
+- [ ] Enable **PITR** + do a restore drill (SEC-12 / AC-16).
+- [ ] Create **R2** buckets (`boq-sources`, `report-media`); set STORAGE_PROVIDER=r2 + keys.
+- [ ] Deploy edge functions (`boq-parse`, `boq-extract-pdf`, `storage-signed-url`,
+      `receipt-ocr`, `ask`); set their secrets; DEV_AI_MODE=false + OpenRouter key.
+- [ ] Enable the `custom_access_token` auth hook on cloud; switch OTP to **Termii**.
+- [ ] Set `.env` for `apps/web` (URL + anon key) and deploy; build `apps/mobile` for cloud.
+- [ ] Execute processor DPAs/SCCs before real personal data (SEC-1); start WhatsApp BSP.
