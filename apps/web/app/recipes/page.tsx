@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { activeOrgFromToken } from "@/lib/activeOrg";
 import { CreateTypeForm } from "@/components/CreateTypeForm";
+import { PageHeader } from "@/components/PageHeader";
+import { IconLayers, IconChevron } from "@/components/icons";
 
 // Recipe library. Reads RLS-scoped to the active org; writes via SECURITY DEFINER fns.
 export default async function RecipesPage() {
@@ -19,28 +21,32 @@ export default async function RecipesPage() {
     .order("name");
 
   return (
-    <main className="space-y-6">
-      <h1 className="text-xl font-semibold">Recipe library</h1>
-      <p className="text-sm text-neutral-500">
-        A building type is a recipe: stages, material quantities (no price), and
-        non-material costs. Digitise once per type, copy per building.
-      </p>
+    <div className="space-y-6">
+      <PageHeader
+        title="Recipe library"
+        subtitle="A building type is a recipe: stages, material quantities (no price), and non-material costs. Digitise once per type, copy per building." />
 
-      <ul className="divide-y divide-neutral-100 dark:divide-neutral-900">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {(types ?? []).map((t) => (
-          <li key={t.id} className="flex items-center justify-between py-2">
-            <div>
-              <Link className="font-medium underline" href={`/recipes/${t.id}`}>{t.name}</Link>
-              <span className="ml-2 text-xs text-neutral-500">
-                {t.category ?? "—"} · v{t.version}{t.parent_version_id ? " (revised)" : ""}
+          <Link key={t.id} href={`/recipes/${t.id}`} className="card card-hover group flex items-center gap-3">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/[0.08] bg-white/[0.03] text-accent-300">
+              <IconLayers className="h-5 w-5" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate font-semibold text-white">{t.name}</span>
+              <span className="block truncate text-xs text-[#8b95a7]">
+                {t.category ?? "—"} · v{t.version}{t.parent_version_id ? " · revised" : ""}
               </span>
-            </div>
-          </li>
+            </span>
+            <IconChevron className="h-4 w-4 -rotate-90 text-[#5b6473] transition group-hover:text-accent-300" />
+          </Link>
         ))}
-        {(types ?? []).length === 0 && <li className="py-3 text-neutral-500">No types yet.</li>}
-      </ul>
+        {(types ?? []).length === 0 && (
+          <p className="card text-sm text-[#8b95a7] sm:col-span-2 lg:col-span-3">No types yet — create your first recipe below.</p>
+        )}
+      </div>
 
       <CreateTypeForm orgId={orgId} />
-    </main>
+    </div>
   );
 }

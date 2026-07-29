@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { PageHeader } from "@/components/PageHeader";
 
 // Dev notifications outbox. In production this is drained to WhatsApp/SMS/Resend; in dev
 // messages are logged here instead (same interface).
@@ -15,20 +16,25 @@ export default async function NotificationsPage() {
     .limit(100);
 
   return (
-    <main className="space-y-4">
-      <h1 className="text-xl font-semibold">Notifications (dev outbox)</h1>
-      <ul className="space-y-2 text-sm">
+    <div className="space-y-6">
+      <PageHeader
+        title="Notifications"
+        subtitle="Dev outbox — in production this drains to WhatsApp / SMS / Resend; in dev, messages are logged here (same interface)." />
+      <div className="space-y-3">
         {(msgs ?? []).map((m) => (
-          <li key={m.id} className="rounded-lg border border-neutral-200 p-3 dark:border-neutral-800">
-            <div className="flex items-center justify-between">
-              <span className="font-medium">{m.template ?? "message"} · {m.channel}</span>
-              <span className="text-xs text-neutral-500">{m.recipient} · {m.status}</span>
+          <div key={m.id} className="card">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="flex items-center gap-2 text-sm font-semibold text-white">
+                {m.template ?? "message"}
+                <span className="badge badge-blue">{m.channel}</span>
+              </span>
+              <span className="text-xs text-[#8b95a7]">{m.recipient} · {m.status}</span>
             </div>
-            <pre className="mt-1 overflow-x-auto rounded bg-neutral-100 p-2 text-xs dark:bg-neutral-900">{JSON.stringify(m.payload, null, 2)}</pre>
-          </li>
+            <pre className="mt-2 overflow-x-auto rounded-lg border border-white/[0.06] bg-black/30 p-3 text-xs text-[#c7cedb]">{JSON.stringify(m.payload, null, 2)}</pre>
+          </div>
         ))}
-        {(msgs ?? []).length === 0 && <li className="text-neutral-500">No messages yet.</li>}
-      </ul>
-    </main>
+        {(msgs ?? []).length === 0 && <p className="card text-sm text-[#8b95a7]">No messages yet.</p>}
+      </div>
+    </div>
   );
 }

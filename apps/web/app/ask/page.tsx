@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { AskBox } from "@/components/AskBox";
+import { PageHeader } from "@/components/PageHeader";
 
 export default async function AskPage() {
   const supabase = createClient();
@@ -9,13 +10,11 @@ export default async function AskPage() {
   const { data: projects } = await supabase.from("projects").select("id,name").order("name");
 
   return (
-    <main className="space-y-4">
-      <h1 className="text-xl font-semibold">Ask</h1>
-      <p className="text-sm text-neutral-500">
-        Plain-language questions answered from your data (arithmetic over the figures). It
-        informs judgment with numbers — it doesn&apos;t make the call for you.
-      </p>
+    <div className="space-y-6">
+      <PageHeader
+        title="Ask"
+        subtitle="Plain-language questions answered from your data. It informs judgment with numbers — it doesn't make the call for you." />
       <AskBox projects={projects ?? []} />
-    </main>
+    </div>
   );
 }

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { SetPriceForm } from "@/components/SetPriceForm";
+import { PageHeader } from "@/components/PageHeader";
 
 function activeOrgFromSession(accessToken: string | undefined): string {
   if (!accessToken) return "";
@@ -39,38 +40,40 @@ export default async function PricesPage() {
   }
 
   return (
-    <main className="space-y-6">
-      <h1 className="text-xl font-semibold">Price list</h1>
-      <p className="text-sm text-neutral-500">
-        Prices are dated and append-only — a change is a new row, never an overwrite.
-        Cost anywhere = quantity × current price, computed live.
-      </p>
+    <div className="space-y-6">
+      <PageHeader
+        title="Price list"
+        subtitle="Prices are dated and append-only — a change is a new row, never an overwrite. Cost anywhere = quantity × current price, computed live." />
 
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-neutral-200 text-left dark:border-neutral-800">
-            <th className="py-2">Material</th>
-            <th>Unit</th>
-            <th className="text-right">Current price (₦)</th>
-          </tr>
-        </thead>
-        <tbody>
-          {(materials ?? []).map((m) => (
-            <tr key={m.id} className="border-b border-neutral-100 dark:border-neutral-900">
-              <td className="py-2">{m.name}</td>
-              <td className="text-neutral-500">{m.unit}</td>
-              <td className="text-right font-mono">
-                {current.has(m.id) ? current.get(m.id)!.toLocaleString() : "—"}
-              </td>
-            </tr>
-          ))}
-          {(materials ?? []).length === 0 && (
-            <tr><td colSpan={3} className="py-3 text-neutral-500">No materials in this org yet.</td></tr>
-          )}
-        </tbody>
-      </table>
+      <div className="card p-0 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="table-base">
+            <thead>
+              <tr>
+                <th>Material</th>
+                <th>Unit</th>
+                <th className="text-right">Current price (₦)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(materials ?? []).map((m) => (
+                <tr key={m.id}>
+                  <td className="font-medium text-white">{m.name}</td>
+                  <td className="text-[#8b95a7]">{m.unit}</td>
+                  <td className="text-right font-mono">
+                    {current.has(m.id) ? current.get(m.id)!.toLocaleString() : <span className="text-[#5b6473]">—</span>}
+                  </td>
+                </tr>
+              ))}
+              {(materials ?? []).length === 0 && (
+                <tr><td colSpan={3} className="py-6 text-center text-[#8b95a7]">No materials in this org yet.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
       <SetPriceForm orgId={orgId} materials={materials ?? []} today={today} />
-    </main>
+    </div>
   );
 }

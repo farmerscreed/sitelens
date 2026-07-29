@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { AiProposals } from "@/components/AiProposals";
+import { PageHeader } from "@/components/PageHeader";
 
 // AI proposes, humans dispose (Rule 3). Every AI output is a proposal here; a human's
 // accept/reject becomes the training label (the flywheel).
@@ -17,13 +18,11 @@ export default async function AiPage() {
     .limit(50);
 
   return (
-    <main className="space-y-4">
-      <h1 className="text-xl font-semibold">AI proposals</h1>
-      <p className="text-sm text-neutral-500">
-        Nothing here is committed until you accept it. Your verdict becomes a labelled
-        example that improves the models over time.
-      </p>
+    <div className="space-y-6">
+      <PageHeader
+        title="AI proposals"
+        subtitle="Nothing here is committed until you accept it. Your verdict becomes a labelled example that improves the models over time." />
       <AiProposals proposals={proposals ?? []} />
-    </main>
+    </div>
   );
 }
