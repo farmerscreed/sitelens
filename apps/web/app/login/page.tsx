@@ -3,20 +3,24 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
-// Phone-OTP login. Locally the OTP is a fixed dev code (config.toml [auth.sms.test_otp]);
-// production uses Termii. Never requires a real SMS in dev.
+// Login: email OTP (default — reliable for the web console) or phone OTP (for field
+// users / mobile). Both use Supabase signInWithOtp → verifyOtp with a 6-digit code.
 export default function LoginPage() {
   const router = useRouter();
   const supabase = createClient();
-  const [phone, setPhone] = useState("+2348000000001");
+  const [method, setMethod] = useState<"email" | "phone">("email");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("+234");
   const [code, setCode] = useState("");
-  const [stage, setStage] = useState<"phone" | "code">("phone");
+  const [stage, setStage] = useState<"identify" | "code">("identify");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  async function sendOtp() {
+  async function sendCode() {
     setBusy(true); setError(null);
-    const { error } = await supabase.auth.signInWithOtp({ phone });
+    const { error } = method === "email"
+      ? await supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: false } })
+      : await supabase.auth.signInWithOtp({ phone });
     setBusy(false);
     if (error) setError(error.message);
     else setStage("code");
@@ -24,7 +28,9 @@ export default function LoginPage() {
 
   async function verify() {
     setBusy(true); setError(null);
-    const { error } = await supabase.auth.verifyOtp({ phone, token: code, type: "sms" });
+    const { error } = method === "email"
+      ? await supabase.auth.verifyOtp({ email, token: code, type: "email" })
+      : await supabase.auth.verifyOtp({ phone, token: code, type: "sms" });
     setBusy(false);
     if (error) setError(error.message);
     else router.replace("/dashboard");
@@ -37,43 +43,50 @@ export default function LoginPage() {
         <p className="text-sm text-neutral-500">Command console — sign in</p>
       </div>
 
-      {stage === "phone" ? (
+      {stage === "identify" ? (
         <div className="space-y-3">
-          <label className="block text-sm font-medium">Phone number</label>
-          <input
-            className="w-full rounded-md border border-neutral-300 px-3 py-2 dark:border-neutral-700 dark:bg-neutral-900"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            placeholder="+234…"
-          />
+          <div className="flex rounded-md border border-neutral-300 p-0.5 text-sm dark:border-neutral-700">
+            {(["email", "phone"] as const).map((m) => (
+              <button key={m}
+                className={`flex-1 rounded px-3 py-1 ${method === m ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900" : "text-neutral-500"}`}
+                onClick={() => { setMethod(m); setError(null); }}>
+                {m === "email" ? "Email" : "Phone"}
+              </button>
+            ))}
+          </div>
+
+          {method === "email" ? (
+            <input type="email" autoComplete="email"
+              className="w-full rounded-md border border-neutral-300 px-3 py-2 dark:border-neutral-700 dark:bg-neutral-900"
+              placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+          ) : (
+            <input inputMode="tel"
+              className="w-full rounded-md border border-neutral-300 px-3 py-2 dark:border-neutral-700 dark:bg-neutral-900"
+              placeholder="+234…" value={phone} onChange={(e) => setPhone(e.target.value)} />
+          )}
+
           <button
             className="w-full rounded-md bg-neutral-900 px-3 py-2 text-white disabled:opacity-50 dark:bg-white dark:text-neutral-900"
-            onClick={sendOtp}
-            disabled={busy || !phone}
-          >
+            onClick={sendCode} disabled={busy || (method === "email" ? !email : phone.length < 7)}>
             {busy ? "Sending…" : "Send code"}
           </button>
-          <p className="text-xs text-neutral-500">Dev: code is 123456 for the seeded phones.</p>
+          <p className="text-xs text-neutral-500">
+            We&apos;ll {method === "email" ? "email" : "text"} you a 6-digit code.
+          </p>
         </div>
       ) : (
         <div className="space-y-3">
           <label className="block text-sm font-medium">Enter the 6-digit code</label>
           <input
             className="w-full rounded-md border border-neutral-300 px-3 py-2 tracking-widest dark:border-neutral-700 dark:bg-neutral-900"
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            placeholder="123456"
-            inputMode="numeric"
-          />
+            placeholder="123456" inputMode="numeric" value={code} onChange={(e) => setCode(e.target.value)} />
           <button
             className="w-full rounded-md bg-neutral-900 px-3 py-2 text-white disabled:opacity-50 dark:bg-white dark:text-neutral-900"
-            onClick={verify}
-            disabled={busy || code.length < 6}
-          >
+            onClick={verify} disabled={busy || code.length < 6}>
             {busy ? "Verifying…" : "Verify & sign in"}
           </button>
-          <button className="w-full text-sm text-neutral-500 underline" onClick={() => setStage("phone")}>
-            Use a different number
+          <button className="w-full text-sm text-neutral-500 underline" onClick={() => { setStage("identify"); setCode(""); }}>
+            Start over
           </button>
         </div>
       )}
