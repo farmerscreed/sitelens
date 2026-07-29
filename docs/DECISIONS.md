@@ -257,3 +257,31 @@ logged here so the founder can review drift. Newest at the bottom.
     The weekly digest (`fn_run_weekly_digests`) is scheduled with **pg_cron** (Fri 06:00),
     registered best-effort so `db reset` never breaks if scheduling is unavailable — must
     be verified after the cloud move (noted in CLOUD_MIGRATION.md).
+
+## M8 — cloud pilot / web console (PRD was silent on these ops choices)
+
+37. **Web console login = email OTP (not phone).** PRD assumed phone OTP (Termii). During
+    cloud cutover the Termii `send-sms` auth hook 500'd on every request, blocking all
+    logins. Email OTP via Resend SMTP is simpler and has no SMS-provider dependency, so the
+    web console uses **email** as the primary path; phone OTP stays in the code for the
+    Flutter field app (where a phone number is the natural identity) and is re-enabled when
+    Termii is sorted. The login page offers both Email (default) + Phone tabs. This does not
+    touch the Golden Rules — auth identity is orthogonal to the money/RLS path. Cloud sender
+    is `noreply@leiko.app` (the verified Resend domain); an unverified Resend sender only
+    delivers to the account owner, so a verified domain is required to email real users.
+
+38. **Interactive controls in a Next.js server component MUST be client components.**
+    Passing an inline `onChange` to a `<select>` from a server component throws at render
+    ("Event handlers cannot be passed to Client Component props") → a production 500 that
+    only surfaces at runtime (build passes). This crashed /board /materials /expenses
+    /portal-links. Standing rule: any element with an event handler lives in a `"use client"`
+    component. The project switcher is now `components/ProjectPicker.tsx` (navigates via a
+    `?project=` query param). Verified: all four routes return 307→login instead of 500.
+
+39. **Web UI is a dark "command console" with a forced-dark design system.** `tailwind`
+    `darkMode: "class"` with `.dark` pinned on `<html>` — the app commits to one dark theme
+    (a monitoring console is used in low light / on site), so every existing `light dark:*`
+    class pair renders its dark variant with no per-component rewrite. Shared design tokens
+    and component classes live in `app/globals.css`; the app shell (sidebar + topbar + org
+    switcher) is `components/Shell.tsx` and hides itself on `/login` and `/portal/*`. Full
+    reference: `docs/WEB_CONSOLE.md`.

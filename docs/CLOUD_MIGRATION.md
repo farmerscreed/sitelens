@@ -59,17 +59,34 @@ cloud-move time. Append as we go. Region target: managed Supabase, London
 - [x] **Auth `custom_access_token` hook enabled** → real logins carry `active_org_id`.
 - [x] `pg_cron` weekly digest registered.
 
+### Update 2026-07-29 — web live, email login, org provisioned
+
+- [x] **Provisioned org #1** Vantara International (founder auth id `…0002`, login
+      biebele@gmail.com). Starter project/recipe/prices in place.
+- [x] **Deployed `apps/web` to Vercel** → https://sitelens-eosin.vercel.app (auto-deploy on
+      push to `master`). Full web reference: **docs/WEB_CONSOLE.md**.
+- [x] **Login works via EMAIL OTP** (decision #37). Cloud auth uses **Resend SMTP**, sender
+      **`noreply@leiko.app`** (leiko.app = verified Resend domain; account owner
+      tawokels@gmail.com). Email rate limit raised to **100/hr**. NOTE: an unverified Resend
+      sender only delivers to the account owner — a verified domain is required to email real
+      pilot users/clients.
+- [x] **`custom_access_token` hook** confirmed injecting `active_org_id` into real tokens.
+- **Vercel Hobby committer rule:** deploys are BLOCKED unless the commit email is linked to a
+      GitHub account. Commit as `29656494+farmerscreed@users.noreply.github.com` (see
+      docs/WEB_CONSOLE.md §2).
+
 ### Remaining Phase-0 (before real data / pilot) — see docs/M8_PILOT.md
 - [ ] Enable **PITR** + do a restore drill (SEC-12 / AC-16) — dashboard (may need a paid plan).
-- [ ] **Phone OTP → Termii:** add the Termii provider + key in Auth settings (login won't
-      send OTP until then; email OTP works meanwhile).
+- [ ] **Phone OTP → Termii:** the `send-sms` hook 500'd and is DISABLED. Email OTP is the web
+      login path meanwhile (decision #37); fix Termii for the Flutter field app.
+- [ ] **Verify a Resend domain sender** so OTP/notifications reach any client (not just the
+      Resend account owner). leiko.app is verified; keep sender on it.
 - [ ] Paste `SUPABASE_SERVICE_ROLE_KEY` / `SUPABASE_JWT_SECRET` / DB password into local `.env`
-      (for admin scripts / running the test suite against cloud).
-- [ ] Provision **org #1** (founder + members + real recipes/prices/buildings + portal links).
-- [ ] Deploy `apps/web` (env already points at cloud); build `apps/mobile` for cloud.
+      (for admin scripts / running the test suite against cloud). — done in `.env`.
+- [ ] Build `apps/mobile` for cloud.
 - [ ] R2 is OPTIONAL for the pilot (Supabase Storage works); swap later for zero-egress.
 - [ ] Execute processor DPAs/SCCs before real personal data (SEC-1); start WhatsApp BSP.
-- [ ] **Revoke the `sbp_…` access token** used for the push (exposed in chat).
+- [ ] **Revoke the `sbp_…` access token** used for the push (exposed in chat) — STILL PENDING.
 
 ### Provisioned (2026-07-28)
 - **Org #1: Vantara International** (id `10000000-…-0001`). Admin = the founder, login by

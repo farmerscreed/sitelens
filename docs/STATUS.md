@@ -5,6 +5,35 @@ session. Newest status at the top of each section._
 
 ---
 
+## 2026-07-29 — CLOUD LIVE: web console deployed, email login works, UI redesigned
+
+The pilot infrastructure is now standing up on managed cloud. State at end of session:
+
+**Cloud Supabase** (`gwzpqnnwflwkcrowolgx`, London): all 28 migrations + edge functions +
+secrets + `custom_access_token` hook live. Org #1 **Vantara International** provisioned
+(founder auth id `…0002`). See `docs/CLOUD_MIGRATION.md`.
+
+**Web console DEPLOYED to Vercel** → **https://sitelens-eosin.vercel.app**
+(project `sitelens`, repo github.com/farmerscreed/sitelens, branch `master`, auto-deploy on push).
+
+**Login WORKS via email OTP.** Founder signs in with **biebele@gmail.com** → 6-digit code.
+Cloud auth uses **Resend SMTP**, sender `noreply@leiko.app` (leiko.app = verified Resend
+domain; account owner tawokels@gmail.com). Email rate limit raised to 100/hr. Phone OTP
+(Termii `send-sms` hook) is **disabled** — it 500'd; deferred to the mobile app.
+
+**UI redesigned** to a dark "command console" (amber hi-vis accent, glass panels, sidebar
+shell). Full architecture + design system documented in **`docs/WEB_CONSOLE.md`**.
+
+**Production 500 FIXED:** server components were passing inline `onChange` to `<select>`
+(React forbids it) → crashed /board /materials /expenses /portal-links. Now a client
+`<ProjectPicker>`. All four return 307→login (verified), render correctly once signed in.
+
+**Open (not blocking the console):** revoke the exposed `sbp_…` token; enable PITR + restore
+drill; Termii phone OTP for mobile; DPAs before real personal data; WhatsApp BSP application.
+Only farmerscreed's GitHub-noreply committer email deploys on Vercel Hobby (see WEB_CONSOLE.md).
+
+---
+
 ## M8 (current milestone) — PILOT (operational, not a feature build)
 
 Runbook: `docs/M8_PILOT.md`. M8 = cloud cutover → provision org #1 → **21 consecutive
