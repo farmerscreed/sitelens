@@ -5,6 +5,28 @@ session. Newest status at the top of each section._
 
 ---
 
+## 2026-07-30 — App-wide UX polish, price edit/delete, CORS fix, Ask formatting
+
+- **App-wide UI/UX pass (mobile-first):** every form on the design system
+  (`.input/.select/.btn/.card`), 16px inputs on mobile (no iOS zoom), 44px touch
+  targets, all tables in horizontal-scroll containers, responsive grids. **(i) help
+  panels** on every page (`PageHeader.info`). Dashboard's dev "tenant isolation" card
+  replaced with an **adaptive Getting-started checklist**.
+- **Prices editable + deletable:** `PricesManager` (inline set/correct + dated history
+  + delete). New migration `20260730000000_price_delete` → `fn_delete_material_price`
+  (admin-only, audited). **30 migrations** now.
+- **CORS bug fixed (was blocking BOQ upload + Ask):** edge functions now allow
+  `x-client-info` + `apikey`. All 5 functions redeployed (verify_jwt now true — fine,
+  users send a JWT; OPTIONS still passes). See docs/CLOUD_MIGRATION.md.
+- **Ask** answers now render as markdown (`components/Markdown.tsx`) and are prompted to
+  be structured + actionable (direct answer → figures → **Suggested action**).
+- **BOQ wizard** now guides you to create a recipe first when none exists.
+- **Open / next:** the deep **BOQ intelligence** work (AI validates + auto-assigns
+  stages, populates the price list from BOQ rates, resolves conflicting values) is
+  specced in **docs/BOQ_INTELLIGENCE.md** — not yet built.
+
+---
+
 ## 2026-07-29 — CLOUD LIVE: web console deployed, email login works, UI redesigned
 
 The pilot infrastructure is now standing up on managed cloud. State at end of session:

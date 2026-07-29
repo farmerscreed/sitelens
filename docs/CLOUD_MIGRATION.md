@@ -59,6 +59,17 @@ cloud-move time. Append as we go. Region target: managed Supabase, London
 - [x] **Auth `custom_access_token` hook enabled** → real logins carry `active_org_id`.
 - [x] `pg_cron` weekly digest registered.
 
+### Update 2026-07-30 — CORS fix, price-delete migration, functions redeployed
+
+- [x] **All 5 edge functions redeployed** with corrected CORS (`x-client-info`, `apikey`
+      added to Access-Control-Allow-Headers) — was blocking BOQ upload + Ask from the Vercel
+      origin. Note: MCP redeploy sets `verify_jwt: true` (fine; users authenticate) and the
+      `_shared/ai-router.ts` import is flattened to `./ai-router.ts` in the deployed copy.
+- [x] **Migration `20260730000000_price_delete`** applied → `fn_delete_material_price`
+      (admin-only, audited). **30 migrations** total now.
+- [ ] Next dedicated build: **BOQ intelligence** (see docs/BOQ_INTELLIGENCE.md) — AI stage
+      assignment, price-list population from BOQ rates, conflict resolution.
+
 ### Update 2026-07-29 (later) — projects module
 
 - [x] **Migration `20260729000000_projects_write_fns`** applied to cloud (now **29 migrations**):

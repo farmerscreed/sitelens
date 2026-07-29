@@ -297,3 +297,21 @@ logged here so the founder can review drift. Newest at the bottom.
     cookie can never surface another project's (or org's) data. Recipes / prices / plans stay
     **org-wide on purpose** (a recipe and a price list apply across every project); only
     site-specific data (buildings, stock, expenses, reports, portal links) is per-project.
+
+41. **Edge-function CORS must allow `x-client-info` and `apikey`.** The functions shipped
+    with `Access-Control-Allow-Headers: "authorization, content-type"`, but supabase-js
+    always sends `x-client-info` (and `apikey`), so the browser preflight failed and every
+    call (BOQ upload, Ask) was blocked from the Vercel origin. Fixed to
+    `"authorization, x-client-info, apikey, content-type"` on all five functions and
+    redeployed. (Redeploy via the MCP tool sets `verify_jwt: true`; that's fine — users
+    send a JWT and OPTIONS preflight still passes without auth. The `_shared/ai-router.ts`
+    import is flattened to `./ai-router.ts` in the MCP-deployed copy; the repo keeps the
+    `../_shared` layout as the source of truth for CLI deploys.)
+
+42. **Price list is editable and deletable — still server-only, still append-only.**
+    "Edit" reuses `fn_set_material_price` (same effective_from = same-day correction via
+    ON CONFLICT); "delete" is a new admin-only, audited `fn_delete_material_price` for
+    removing a wrong dated entry. No client write policy was added — material_prices stays
+    server-function-only (Rule 1). AI answers render through a tiny in-house markdown
+    component (no external lib; CSP-safe) and are prompted for a direct-answer → figures →
+    suggested-action shape so output is readable and actionable.
