@@ -21,7 +21,15 @@ export default async function AiPage() {
     <div className="space-y-6">
       <PageHeader
         title="AI proposals"
-        subtitle="Nothing here is committed until you accept it. Your verdict becomes a labelled example that improves the models over time." />
+        subtitle="Nothing here is committed until you accept it. Your verdict becomes a labelled example that improves the models over time."
+        info={{
+          what: "Where the AI's suggestions wait for your decision — extracted BOQ rows, reorder advice, spend anomalies. Nothing is ever applied automatically: you accept or reject, and your verdict trains the models to get better.",
+          steps: [
+            "Review each proposal and its confidence.",
+            "Accept to apply it, or reject if it's wrong.",
+            "Either way your choice is recorded as a training example.",
+          ],
+        }} />
       <AiProposals proposals={proposals ?? []} />
     </div>
   );

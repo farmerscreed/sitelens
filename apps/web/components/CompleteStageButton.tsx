@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { IconCheck, IconAlert } from "@/components/icons";
 
 // Marks the building's current stage complete via fn_complete_stage (Rule 1).
 export function CompleteStageButton({ buildingId, stageId }: { buildingId: string; stageId: string }) {
@@ -20,9 +21,10 @@ export function CompleteStageButton({ buildingId, stageId }: { buildingId: strin
 
   return (
     <div>
-      <button className="rounded-md bg-neutral-900 px-3 py-1 text-sm text-white disabled:opacity-50 dark:bg-white dark:text-neutral-900"
-        disabled={busy} onClick={run}>{busy ? "Working…" : "Complete current stage"}</button>
-      {err && <p className="mt-1 text-sm text-red-600">{err}</p>}
+      <button className="btn btn-primary" disabled={busy} onClick={run}>
+        <IconCheck className="h-4 w-4" />{busy ? "Working…" : "Complete current stage"}
+      </button>
+      {err && <p className="mt-2 flex items-center gap-1.5 text-sm text-red-300"><IconAlert className="h-4 w-4" />{err}</p>}
     </div>
   );
 }

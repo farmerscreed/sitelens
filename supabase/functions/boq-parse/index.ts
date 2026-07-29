@@ -9,7 +9,7 @@ import * as XLSX from "npm:xlsx@0.18.5";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
 function headerSignature(headers: string[]): string {

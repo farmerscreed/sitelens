@@ -24,7 +24,15 @@ export default async function RecipesPage() {
     <div className="space-y-6">
       <PageHeader
         title="Recipe library"
-        subtitle="A building type is a recipe: stages, material quantities (no price), and non-material costs. Digitise once per type, copy per building." />
+        subtitle="A building type is a recipe: stages, material quantities (no price), and non-material costs. Digitise once per type, copy per building."
+        info={{
+          what: "A 'recipe' (building type) is the reusable design for a kind of building — its construction stages, the material quantity each stage needs, and non-material costs. Prices are never stored here; cost is worked out live from the price list.",
+          steps: [
+            "Create a type, then open it to add stages and the material quantities per stage.",
+            "Or import a BOQ (from Excel/PDF) to fill the quantities quickly.",
+            "Reuse the type across projects — stamp it onto buildings from the Board.",
+          ],
+        }} />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {(types ?? []).map((t) => (

@@ -22,7 +22,15 @@ export default async function ExpensesPage({ searchParams }: { searchParams: { p
     <div className="space-y-6">
       <PageHeader
         title="Expenses"
-        subtitle="Committed when recorded, spent only once approved. Amounts over ₦250k need Admin approval." />
+        subtitle="Committed when recorded, spent only once approved. Amounts over ₦250k need Admin approval."
+        info={{
+          what: "Every spend on the project. An expense is 'committed' the moment it's recorded and 'spent' only once approved. Large amounts (over ₦250k) require an Admin to approve. Records are append-only — a mistake is voided with a reason, never edited away.",
+          steps: [
+            "Record an expense: amount, who it was paid to, and the budget line it belongs to.",
+            "Small amounts post straight through; large ones wait for Admin approval.",
+            "Void (with a reason) anything entered in error — the history stays intact.",
+          ],
+        }} />
       <ExpensesPanel projectId={projectId} expenses={expenses ?? []} budgetLines={budgetLines ?? []} />
     </div>
   );

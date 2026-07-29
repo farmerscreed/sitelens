@@ -28,7 +28,15 @@ export default async function PortalLinksPage({ searchParams }: { searchParams: 
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Client portal links" subtitle="Share a read-only, PIN-protected progress view with each client." />
+      <PageHeader title="Client portal links" subtitle="Share a read-only, PIN-protected progress view with each client."
+        info={{
+          what: "Give a client a safe window into their project — progress and photos only, no prices, suppliers or workers. They open a link and enter a PIN; no account needed. You can revoke access any time and every open is logged.",
+          steps: [
+            "Create a link for the client (name + phone); a one-time PIN is shown once — share it with them.",
+            "They open the link, enter the PIN, and see read-only progress.",
+            "Revoke a link whenever you like; check 'last opened' to see engagement.",
+          ],
+        }} />
       <PortalLinksPanel
         projectId={projectId}
         links={(links ?? []).map((l) => ({ ...l, last_opened: lastOpened.get(l.id) ?? null }))}

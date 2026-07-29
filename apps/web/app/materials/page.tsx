@@ -78,7 +78,16 @@ export default async function MaterialsPage({ searchParams }: { searchParams: { 
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Materials & inventory" subtitle="What's in store, what it's worth, and how usage compares to the BOQ. On-hand is the running sum of every delivery minus every issue — never a typed number." />
+      <PageHeader title="Materials & inventory" subtitle="What's in store, what it's worth, and how usage compares to the BOQ. On-hand is the running sum of every delivery minus every issue — never a typed number."
+        info={{
+          what: "This page tracks stock per project. On-hand is never typed in — it's the running total of every delivery (IN) minus every issue to a building (OUT). 'Usage vs plan' compares what you've actually used to what the BOQ recipe says you should.",
+          steps: [
+            "Log a delivery: set the toggle to IN, pick the material and quantity, then Log.",
+            "Log usage: switch to OUT, pick the material, quantity and the building it went to.",
+            "Watch 'Usage vs plan (BOQ)' — a red bar means a building has consumed more than its design allows.",
+            "Follow the reorder advice card to see what to buy next.",
+          ],
+        }} />
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">

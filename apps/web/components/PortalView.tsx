@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { IconLogo, IconAlert, IconBoard, IconReceipt } from "@/components/icons";
 
 type View = {
   project: string;
@@ -30,48 +31,68 @@ export function PortalView({ token }: { token: string }) {
 
   if (view) {
     return (
-      <div className="space-y-5">
-        <div>
-          <h1 className="text-2xl font-semibold">{view.project}</h1>
-          <p className="text-sm text-neutral-500">Project update</p>
+      <div className="mx-auto max-w-lg space-y-5 px-4 py-10">
+        <div className="flex items-center gap-2.5">
+          <span className="grid h-9 w-9 place-items-center rounded-xl bg-accent-sheen text-ink-950"><IconLogo className="h-5 w-5" /></span>
+          <span className="text-sm font-semibold text-white">Site<span className="gradient-text">Lens</span></span>
         </div>
-        <section className="rounded-lg border border-neutral-200 p-4 dark:border-neutral-800">
-          <div className="text-sm text-neutral-500">Progress</div>
-          <div className="text-3xl font-semibold">{view.progress.pct}%</div>
-          <div className="text-sm text-neutral-500">{view.progress.buildings_done} of {view.progress.buildings_total} buildings complete</div>
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-white">{view.project}</h1>
+          <p className="text-sm text-[#8b95a7]">Project update</p>
+        </div>
+
+        <section className="card">
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#8b95a7]"><IconBoard className="h-4 w-4 text-accent-300" />Progress</div>
+          <div className="mt-2 text-4xl font-semibold text-white">{view.progress.pct}%</div>
+          <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/[0.07]">
+            <div className="h-full rounded-full bg-accent-sheen" style={{ width: `${view.progress.pct}%` }} />
+          </div>
+          <div className="mt-2 text-sm text-[#8b95a7]">{view.progress.buildings_done} of {view.progress.buildings_total} buildings complete</div>
         </section>
-        <section className="rounded-lg border border-neutral-200 p-4 dark:border-neutral-800">
-          <div className="mb-2 text-sm text-neutral-500">Spend vs budget</div>
-          <dl className="grid grid-cols-3 gap-2 text-sm">
-            <div><dt className="text-neutral-500">Budget</dt><dd className="font-mono">{naira(view.spend.budget)}</dd></div>
-            <div><dt className="text-neutral-500">Spent</dt><dd className="font-mono">{naira(view.spend.spent)}</dd></div>
-            <div><dt className="text-neutral-500">Committed</dt><dd className="font-mono">{naira(view.spend.committed)}</dd></div>
+
+        <section className="card">
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#8b95a7]"><IconReceipt className="h-4 w-4 text-accent-300" />Spend vs budget</div>
+          <dl className="mt-3 grid grid-cols-3 gap-2 text-sm">
+            <div><dt className="text-[#8b95a7]">Budget</dt><dd className="mt-0.5 font-mono text-white">{naira(view.spend.budget)}</dd></div>
+            <div><dt className="text-[#8b95a7]">Spent</dt><dd className="mt-0.5 font-mono text-white">{naira(view.spend.spent)}</dd></div>
+            <div><dt className="text-[#8b95a7]">Committed</dt><dd className="mt-0.5 font-mono text-white">{naira(view.spend.committed)}</dd></div>
           </dl>
           {view.line_items && (
-            <table className="mt-3 w-full text-sm">
-              <tbody>
-                {view.line_items.map((l, k) => (
-                  <tr key={k}><td className="py-0.5">{l.category ?? "—"}</td><td className="text-right font-mono">{naira(l.amount)}</td></tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="mt-3 overflow-x-auto">
+              <table className="table-base">
+                <tbody>
+                  {view.line_items.map((l, k) => (
+                    <tr key={k}><td className="text-[#c7cedb]">{l.category ?? "—"}</td><td className="text-right font-mono">{naira(l.amount)}</td></tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </section>
-        <p className="text-sm text-neutral-500">{view.photo_count} site photos on file.</p>
+        <p className="text-center text-sm text-[#8b95a7]">{view.photo_count} site photos on file.</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-3">
-      <h1 className="text-xl font-semibold">Client portal</h1>
-      <p className="text-sm text-neutral-500">Enter the 6-digit PIN sent to you separately.</p>
-      <input
-        className="w-full rounded-md border border-neutral-300 px-3 py-2 tracking-widest dark:border-neutral-700 dark:bg-neutral-900"
-        inputMode="numeric" placeholder="PIN" value={pin} onChange={(e) => setPin(e.target.value)} />
-      <button className="w-full rounded-md bg-neutral-900 px-3 py-2 text-white disabled:opacity-50 dark:bg-white dark:text-neutral-900"
-        onClick={open} disabled={busy || pin.length < 6}>{busy ? "Opening…" : "View project"}</button>
-      {err && <p className="text-sm text-red-600">{err}</p>}
+    <div className="flex min-h-screen items-center justify-center px-4">
+      <div className="w-full max-w-sm">
+        <div className="mb-8 flex flex-col items-center text-center">
+          <span className="grid h-14 w-14 place-items-center rounded-2xl bg-accent-sheen text-ink-950 shadow-glow"><IconLogo className="h-8 w-8" /></span>
+          <h1 className="mt-4 text-xl font-semibold tracking-tight text-white">Client portal</h1>
+          <p className="mt-1 text-sm text-[#8b95a7]">Enter the PIN sent to you to view your project.</p>
+        </div>
+        <div className="card">
+          <label className="label">PIN</label>
+          <input className="input text-center text-lg font-semibold tracking-[0.4em]"
+            inputMode="numeric" placeholder="••••••" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
+            onKeyDown={(e) => e.key === "Enter" && pin.length >= 6 && open()} autoFocus />
+          <button className="btn btn-primary mt-4 w-full" onClick={open} disabled={busy || pin.length < 6}>
+            {busy ? "Opening…" : "View project"}
+          </button>
+          {err && <p className="mt-3 flex items-center gap-1.5 text-sm text-red-300"><IconAlert className="h-4 w-4" />{err}</p>}
+        </div>
+      </div>
     </div>
   );
 }

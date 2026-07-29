@@ -26,7 +26,15 @@ export default async function BoardPage({ searchParams }: { searchParams: { proj
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Board" subtitle="Every building as a card, tracked by construction stage." />
+      <PageHeader title="Board" subtitle="Every building as a card, tracked by construction stage."
+        info={{
+          what: "The Board is your site at a glance — each building is a card sitting in the column of the stage it's currently on. Move buildings across as work completes.",
+          steps: [
+            "Pick the active project from the switcher in the top bar.",
+            "Use 'Stamp buildings' to create buildings from a recipe (type), phase and batch.",
+            "Open a building to see its stages; mark a stage done when it's approved — the card advances automatically.",
+          ],
+        }} />
 
       <StampBuildings
         projectId={projectId}

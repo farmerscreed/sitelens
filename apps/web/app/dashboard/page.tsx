@@ -3,19 +3,8 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import {
   IconBoard, IconCalendar, IconBox, IconReceipt, IconLayers, IconUpload,
-  IconChat, IconBuilding, IconLink, IconCheck,
+  IconChat, IconBuilding, IconLink, IconCheck, IconChevron,
 } from "@/components/icons";
-
-// Decode the (already-trusted) session JWT just to SHOW the active_org_id claim
-// the A0 hook injected — a reassuring "isolation is on" status line.
-function decodeClaims(jwt: string): Record<string, unknown> {
-  try {
-    const [, payload] = jwt.split(".");
-    return JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
-  } catch {
-    return {};
-  }
-}
 
 type Org = { org_id: string; org_name: string; role: string; is_active_org: boolean };
 
@@ -24,8 +13,6 @@ export default async function Dashboard() {
   const { data: userRes } = await supabase.auth.getUser();
   if (!userRes.user) redirect("/login");
 
-  const { data: sessionRes } = await supabase.auth.getSession();
-  const claims = sessionRes.session ? decodeClaims(sessionRes.session.access_token) : {};
   const { data: orgs } = await supabase.rpc("fn_my_orgs");
   const active = ((orgs as Org[]) ?? []).find((o) => o.is_active_org);
 
@@ -36,15 +23,17 @@ export default async function Dashboard() {
     const { count: c } = await q;
     return c ?? 0;
   };
-  const [projects, buildings, recipes, portals] = await Promise.all([
+  const [projects, buildings, recipes, portals, prices, txns] = await Promise.all([
     count("projects"),
     count("buildings"),
     count("building_types", (q) => q.is("archived_at", null)),
     count("portal_links", (q) => q.is("revoked_at", null)),
+    count("material_prices"),
+    count("material_transactions"),
   ]);
 
   const stats = [
-    { label: "Projects", value: projects, icon: IconBuilding, href: "/board" },
+    { label: "Projects", value: projects, icon: IconBuilding, href: "/projects" },
     { label: "Buildings", value: buildings, icon: IconBoard, href: "/board" },
     { label: "Recipes", value: recipes, icon: IconLayers, href: "/recipes" },
     { label: "Active portals", value: portals, icon: IconLink, href: "/portal-links" },
@@ -59,15 +48,24 @@ export default async function Dashboard() {
     { href: "/ask", label: "Ask", desc: "Query your site data", icon: IconChat },
   ];
 
-  const hookOn = Boolean(claims.active_org_id);
+  // Adaptive getting-started checklist — reflects real progress.
+  const setup = [
+    { done: recipes > 0, label: "Create a building recipe", desc: "Stages + material quantities", href: "/recipes" },
+    { done: prices > 0, label: "Set material prices", desc: "Dated market prices", href: "/prices" },
+    { done: buildings > 0, label: "Add buildings to the board", desc: "Stamp from a recipe", href: "/board" },
+    { done: txns > 0, label: "Log your stock", desc: "Deliveries in, usage out", href: "/materials" },
+    { done: portals > 0, label: "Share a client portal", desc: "Read-only progress link", href: "/portal-links" },
+  ];
+  const doneCount = setup.filter((s) => s.done).length;
+  const allDone = doneCount === setup.length;
 
   return (
     <div className="space-y-8">
       {/* Hero */}
-      <section className="relative overflow-hidden rounded-2xl border border-white/[0.08] bg-gradient-to-br from-ink-800/80 to-ink-900/40 p-7 shadow-panel">
+      <section className="relative overflow-hidden rounded-2xl border border-white/[0.08] bg-gradient-to-br from-ink-800/80 to-ink-900/40 p-6 shadow-panel sm:p-7">
         <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-accent-500/20 blur-3xl" />
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-accent-300">Command Console</p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white">
+        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
           {active ? active.org_name : "SiteLens"}
         </h1>
         <p className="mt-1.5 text-sm text-[#8b95a7]">
@@ -77,7 +75,7 @@ export default async function Dashboard() {
       </section>
 
       {/* Stats */}
-      <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <section className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         {stats.map((s) => {
           const Icon = s.icon;
           return (
@@ -93,10 +91,43 @@ export default async function Dashboard() {
         })}
       </section>
 
+      {/* Getting started — adaptive; hides once everything's done */}
+      {!allDone && (
+        <section className="card">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-white">Getting started</h2>
+              <p className="mt-0.5 text-xs text-[#8b95a7]">Set these up once and the whole console comes alive.</p>
+            </div>
+            <span className="badge badge-accent">{doneCount} / {setup.length} done</span>
+          </div>
+          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/[0.07]">
+            <div className="h-full rounded-full bg-accent-sheen transition-all" style={{ width: `${(doneCount / setup.length) * 100}%` }} />
+          </div>
+          <div className="mt-4 space-y-1.5">
+            {setup.map((s) => (
+              <Link key={s.href} href={s.href}
+                className="group flex items-center gap-3 rounded-xl px-2 py-2 transition hover:bg-white/[0.03]">
+                <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-full border ${
+                  s.done ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300"
+                         : "border-white/15 text-[#5b6473]"}`}>
+                  {s.done ? <IconCheck className="h-3.5 w-3.5" /> : <span className="h-1.5 w-1.5 rounded-full bg-current" />}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className={`block text-sm font-medium ${s.done ? "text-[#8b95a7] line-through" : "text-white"}`}>{s.label}</span>
+                  <span className="block truncate text-xs text-[#5b6473]">{s.desc}</span>
+                </span>
+                <IconChevron className="h-4 w-4 -rotate-90 text-[#5b6473] transition group-hover:text-accent-300" />
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* Quick launch */}
       <section>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#8b95a7]">Quick launch</h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
           {launch.map((l) => {
             const Icon = l.icon;
             return (
@@ -112,32 +143,6 @@ export default async function Dashboard() {
             );
           })}
         </div>
-      </section>
-
-      {/* System status */}
-      <section className="card">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-white">Tenant isolation</h2>
-          <span className={`badge ${hookOn ? "badge-green" : "badge-red"}`}>
-            {hookOn ? <><IconCheck className="h-3.5 w-3.5" /> Active</> : "Not detected"}
-          </span>
-        </div>
-        <p className="mt-1.5 text-xs text-[#8b95a7]">
-          Every query is gated by <code className="text-[#c7cedb]">active_org_id</code> from your signed token — the console
-          can only ever see this organisation&apos;s data.
-        </p>
-        <dl className="mt-4 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
-          {[
-            ["active_org_id", claims.active_org_id],
-            ["user_role", claims.user_role],
-            ["membership_id", claims.membership_id],
-          ].map(([k, v]) => (
-            <div key={k as string} className="flex items-center justify-between gap-3 border-b border-white/[0.05] pb-2">
-              <dt className="text-[#8b95a7]">{k as string}</dt>
-              <dd className="truncate font-mono text-xs text-[#c7cedb]">{String(v ?? "—")}</dd>
-            </div>
-          ))}
-        </dl>
       </section>
     </div>
   );

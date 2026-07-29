@@ -19,7 +19,14 @@ export default async function NotificationsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Notifications"
-        subtitle="Dev outbox — in production this drains to WhatsApp / SMS / Resend; in dev, messages are logged here (same interface)." />
+        subtitle="Dev outbox — in production this drains to WhatsApp / SMS / Resend; in dev, messages are logged here (same interface)."
+        info={{
+          what: "Every message the system would send — client digests, approval requests, alerts — lands here. In production these go out over WhatsApp, SMS and email; while testing they're logged here instead, using the exact same pipeline.",
+          steps: [
+            "Browse recent messages, newest first.",
+            "Each shows the channel, recipient and the exact payload that would be sent.",
+          ],
+        }} />
       <div className="space-y-3">
         {(msgs ?? []).map((m) => (
           <div key={m.id} className="card">

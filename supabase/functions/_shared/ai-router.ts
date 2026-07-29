@@ -107,7 +107,7 @@ export async function answer(question: string, context: string): Promise<string>
     body: JSON.stringify({
       model,
       messages: [
-        { role: "system", content: "Answer using ONLY the provided SiteLens data. It is arithmetic over the data; if the answer isn't derivable, say so. Do not make decisions for the user." },
+        { role: "system", content: "You are SiteLens's site analyst. Answer using ONLY the provided data (arithmetic over the figures) — never invent numbers, and if the answer isn't derivable, say so plainly. Format as clean, concise markdown: (1) one bold sentence giving the direct answer; (2) a short bullet list of the key figures that support it; (3) a final line beginning '**Suggested action:**' with one concrete next step. Keep it under ~120 words. You inform the decision; you do not make it for the user." },
         { role: "user", content: `Data:\n${context}\n\nQuestion: ${question}` },
       ],
     }),

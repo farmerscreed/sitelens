@@ -25,7 +25,15 @@ export default async function ProjectsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Projects"
-        subtitle="Each project is fully isolated — buildings, stock, expenses, reports and portal links never cross between them. Pick the active project from the top-bar switcher." />
+        subtitle="Each project is fully isolated — buildings, stock, expenses, reports and portal links never cross between them. Pick the active project from the top-bar switcher."
+        info={{
+          what: "Run as many building projects as you like. Each one keeps its own buildings, stock, expenses, reports and client links completely separate — selecting a project shows only its data. Recipes and prices are shared across all your projects on purpose.",
+          steps: [
+            "Create a project with its name, location, budget and dates.",
+            "Switch the active project from the top-bar switcher — every page then shows just that project.",
+            "Rename or archive projects here (archiving hides it without deleting anything).",
+          ],
+        }} />
       <ProjectsManager projects={projects ?? []} activeId={activeId} />
     </div>
   );

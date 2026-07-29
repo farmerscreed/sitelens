@@ -154,11 +154,11 @@ export function Shell({ children }: { children: React.ReactNode }) {
         <ProjectSwitcher />
 
         {/* Org switcher */}
-        <div className="relative flex items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.02] pl-3 pr-1.5 py-1.5">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_0_rgba(52,211,153,0.8)]" />
+        <div className="relative flex shrink-0 items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.02] py-1.5 pl-2.5 pr-1 sm:pl-3 sm:pr-1.5">
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400 shadow-[0_0_8px_0_rgba(52,211,153,0.8)]" />
           <select value={active?.org_id ?? ""} disabled={busy || orgs.length === 0}
             onChange={(e) => switchOrg(e.target.value)}
-            className="max-w-[9rem] cursor-pointer appearance-none truncate bg-transparent pr-5 text-sm font-medium text-white focus:outline-none disabled:opacity-60"
+            className="max-w-[5.5rem] cursor-pointer appearance-none truncate bg-transparent pr-5 text-sm font-medium text-white focus:outline-none disabled:opacity-60 sm:max-w-[10rem]"
             style={{ backgroundImage: "none" }}>
             {orgs.length === 0 && <option value="">Loading…</option>}
             {orgs.map((o) => (
@@ -167,7 +167,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
               </option>
             ))}
           </select>
-          <IconChevron className="pointer-events-none -ml-4 h-4 w-4 text-[#8b95a7]" />
+          <IconChevron className="pointer-events-none -ml-4 h-4 w-4 shrink-0 text-[#8b95a7]" />
         </div>
       </header>
 

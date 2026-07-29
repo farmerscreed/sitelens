@@ -72,6 +72,15 @@ export const IconCheck = (p: P) => (
 export const IconAlert = (p: P) => (
   <svg {...base(p)}><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" /></svg>
 );
+export const IconInfo = (p: P) => (
+  <svg {...base(p)}><circle cx="12" cy="12" r="9.5" /><path d="M12 11v5M12 7.5h.01" /></svg>
+);
+export const IconTrash = (p: P) => (
+  <svg {...base(p)}><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6" /></svg>
+);
+export const IconPlus = (p: P) => (
+  <svg {...base(p)}><path d="M12 5v14M5 12h14" /></svg>
+);
 export const IconLogo = (p: P) => (
   <svg {...base({ strokeWidth: 1.6, ...p })}><path d="M12 2 3 7v10l9 5 9-5V7l-9-5Z" /><path d="M12 22V12M3 7l9 5 9-5" /><circle cx="12" cy="12" r="2.4" fill="currentColor" stroke="none" /></svg>
 );

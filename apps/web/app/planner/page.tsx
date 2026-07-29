@@ -23,7 +23,15 @@ export default async function PlannerPage() {
     <div className="space-y-6">
       <PageHeader
         title="Feasibility planner"
-        subtitle="&ldquo;What cash do I need, and when?&rdquo; or &ldquo;how far does my cash go?&rdquo; Results re-compute at current prices, so a price change updates every saved scenario." />
+        subtitle="&ldquo;What cash do I need, and when?&rdquo; or &ldquo;how far does my cash go?&rdquo; Results re-compute at current prices, so a price change updates every saved scenario."
+        info={{
+          what: "Model a project before (or while) you build it. A scenario stores your inputs; the numbers are always recomputed at current prices, so a price change updates every saved scenario automatically.",
+          steps: [
+            "Create a scenario and choose a mode: funding-required (how much cash, and when) or max-delivery (how far a fixed budget goes).",
+            "Add the building types and counts you're planning.",
+            "Open it any time to see the live cash/'schedule result at today's prices.",
+          ],
+        }} />
 
       <div className="grid gap-3 sm:grid-cols-2">
         {(plans ?? []).map((p) => (

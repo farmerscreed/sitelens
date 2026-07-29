@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { IconAlert, IconPlus } from "@/components/icons";
 
 export function CreateTypeForm({ orgId }: { orgId: string }) {
   const router = useRouter();
@@ -13,34 +14,32 @@ export function CreateTypeForm({ orgId }: { orgId: string }) {
 
   async function submit() {
     setBusy(true); setErr(null);
-    const { error } = await supabase.rpc("fn_create_building_type", {
-      p_org: orgId, p_name: name, p_category: category,
-    });
+    const { error } = await supabase.rpc("fn_create_building_type", { p_org: orgId, p_name: name, p_category: category });
     setBusy(false);
     if (error) setErr(error.message);
     else { setName(""); router.refresh(); }
   }
 
   return (
-    <div className="max-w-md space-y-3 rounded-lg border border-neutral-200 p-4 dark:border-neutral-800">
-      <h2 className="text-sm font-medium">New building type</h2>
-      <input
-        className="w-full rounded-md border border-neutral-300 px-3 py-2 dark:border-neutral-700 dark:bg-neutral-900"
-        placeholder="e.g. Terrace Type A" value={name} onChange={(e) => setName(e.target.value)}
-      />
-      <select
-        className="w-full rounded-md border border-neutral-300 px-3 py-2 dark:border-neutral-700 dark:bg-neutral-900"
-        value={category} onChange={(e) => setCategory(e.target.value)}
-      >
-        {["terrace", "duplex", "g+3", "bungalow", "custom"].map((c) => <option key={c}>{c}</option>)}
-      </select>
-      <button
-        className="w-full rounded-md bg-neutral-900 px-3 py-2 text-white disabled:opacity-50 dark:bg-white dark:text-neutral-900"
-        onClick={submit} disabled={busy || !name}
-      >
-        {busy ? "Creating…" : "Create type"}
+    <section className="card max-w-xl">
+      <h2 className="text-sm font-semibold text-white">New building type</h2>
+      <p className="mt-1 text-xs text-[#8b95a7]">A reusable recipe you&apos;ll add stages and material quantities to.</p>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <div className="sm:col-span-2">
+          <label className="label">Name</label>
+          <input className="input" placeholder="e.g. Terrace Type A" value={name} onChange={(e) => setName(e.target.value)} />
+        </div>
+        <div>
+          <label className="label">Category</label>
+          <select className="select" value={category} onChange={(e) => setCategory(e.target.value)}>
+            {["terrace", "duplex", "g+3", "bungalow", "custom"].map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+      </div>
+      <button className="btn btn-primary mt-4" onClick={submit} disabled={busy || !name}>
+        <IconPlus className="h-4 w-4" />{busy ? "Creating…" : "Create type"}
       </button>
-      {err && <p className="text-sm text-red-600">{err}</p>}
-    </div>
+      {err && <p className="mt-3 flex items-center gap-1.5 text-sm text-red-300"><IconAlert className="h-4 w-4" />{err}</p>}
+    </section>
   );
 }
