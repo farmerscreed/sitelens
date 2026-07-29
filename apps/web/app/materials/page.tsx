@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { activeOrgFromToken } from "@/lib/activeOrg";
 import { LogTxnForm } from "@/components/LogTxnForm";
 import { PageHeader } from "@/components/PageHeader";
-import { ProjectPicker } from "@/components/ProjectPicker";
+import { activeProjectId } from "@/lib/activeProject";
 import { IconAlert, IconBox, IconLayers } from "@/components/icons";
 
 // Materials & inventory. On-hand balances are maintained by the DB under lock (never
@@ -18,8 +18,8 @@ export default async function MaterialsPage({ searchParams }: { searchParams: { 
   const orgId = activeOrgFromToken(sessionRes.session?.access_token);
 
   const today = new Date().toISOString().slice(0, 10);
-  const { data: projects } = await supabase.from("projects").select("id,name").order("name");
-  const projectId = searchParams.project ?? projects?.[0]?.id ?? "";
+  const { data: projects } = await supabase.from("projects").select("id,name").is("archived_at", null).order("name");
+  const projectId = activeProjectId(searchParams, projects ?? []);
 
   const [
     { data: balances }, { data: materials }, { data: buildings },
@@ -78,9 +78,7 @@ export default async function MaterialsPage({ searchParams }: { searchParams: { 
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Materials & inventory" subtitle="What's in store, what it's worth, and how usage compares to the BOQ. On-hand is the running sum of every delivery minus every issue — never a typed number.">
-        <ProjectPicker projects={projects ?? []} value={projectId} />
-      </PageHeader>
+      <PageHeader title="Materials & inventory" subtitle="What's in store, what it's worth, and how usage compares to the BOQ. On-hand is the running sum of every delivery minus every issue — never a typed number." />
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">

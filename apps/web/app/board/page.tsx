@@ -4,7 +4,7 @@ import { activeOrgFromToken } from "@/lib/activeOrg";
 import { Board } from "@/components/Board";
 import { StampBuildings } from "@/components/StampBuildings";
 import { PageHeader } from "@/components/PageHeader";
-import { ProjectPicker } from "@/components/ProjectPicker";
+import { activeProjectId } from "@/lib/activeProject";
 
 // The board (F-BOARD-1/2): every building as a card, in columns by stage.
 export default async function BoardPage({ searchParams }: { searchParams: { project?: string } }) {
@@ -14,8 +14,8 @@ export default async function BoardPage({ searchParams }: { searchParams: { proj
   const { data: sessionRes } = await supabase.auth.getSession();
   const orgId = activeOrgFromToken(sessionRes.session?.access_token);
 
-  const { data: projects } = await supabase.from("projects").select("id,name").order("name");
-  const projectId = searchParams.project ?? projects?.[0]?.id ?? "";
+  const { data: projects } = await supabase.from("projects").select("id,name").is("archived_at", null).order("name");
+  const projectId = activeProjectId(searchParams, projects ?? []);
 
   const [{ data: rows }, { data: types }, { data: phases }, { data: batches }] = await Promise.all([
     supabase.from("board_view").select("*").eq("project_id", projectId).order("code"),
@@ -26,9 +26,7 @@ export default async function BoardPage({ searchParams }: { searchParams: { proj
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Board" subtitle="Every building as a card, tracked by construction stage.">
-        <ProjectPicker projects={projects ?? []} value={projectId} />
-      </PageHeader>
+      <PageHeader title="Board" subtitle="Every building as a card, tracked by construction stage." />
 
       <StampBuildings
         projectId={projectId}

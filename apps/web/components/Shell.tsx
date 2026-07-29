@@ -3,16 +3,18 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { ProjectSwitcher } from "@/components/ProjectSwitcher";
 import {
   IconGrid, IconBoard, IconCalendar, IconBox, IconReceipt, IconTag, IconLayers,
   IconUpload, IconSpark, IconChat, IconLink, IconBell, IconLogo, IconMenu,
-  IconClose, IconLogout, IconChevron,
+  IconClose, IconLogout, IconChevron, IconBuilding,
 } from "@/components/icons";
 
 type NavItem = { href: string; label: string; icon: (p: { className?: string }) => JSX.Element; group: string };
 
 const NAV: NavItem[] = [
   { href: "/dashboard", label: "Overview", icon: IconGrid, group: "Command" },
+  { href: "/projects", label: "Projects", icon: IconBuilding, group: "Command" },
   { href: "/board", label: "Board", icon: IconBoard, group: "Command" },
   { href: "/planner", label: "Planner", icon: IconCalendar, group: "Command" },
   { href: "/materials", label: "Materials", icon: IconBox, group: "Site" },
@@ -147,6 +149,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-[15px] font-semibold text-white">{current?.label ?? "Console"}</h1>
         </div>
+
+        {/* Project switcher (only on project-scoped routes) */}
+        <ProjectSwitcher />
 
         {/* Org switcher */}
         <div className="relative flex items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.02] pl-3 pr-1.5 py-1.5">

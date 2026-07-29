@@ -2,15 +2,15 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { PortalLinksPanel } from "@/components/PortalLinksPanel";
 import { PageHeader } from "@/components/PageHeader";
-import { ProjectPicker } from "@/components/ProjectPicker";
+import { activeProjectId } from "@/lib/activeProject";
 
 export default async function PortalLinksPage({ searchParams }: { searchParams: { project?: string } }) {
   const supabase = createClient();
   const { data: userRes } = await supabase.auth.getUser();
   if (!userRes.user) redirect("/login");
 
-  const { data: projects } = await supabase.from("projects").select("id,name").order("name");
-  const projectId = searchParams.project ?? projects?.[0]?.id ?? "";
+  const { data: projects } = await supabase.from("projects").select("id,name").is("archived_at", null).order("name");
+  const projectId = activeProjectId(searchParams, projects ?? []);
 
   const { data: links } = await supabase
     .from("portal_links")
@@ -28,9 +28,7 @@ export default async function PortalLinksPage({ searchParams }: { searchParams: 
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Client portal links" subtitle="Share a read-only, PIN-protected progress view with each client.">
-        <ProjectPicker projects={projects ?? []} value={projectId} />
-      </PageHeader>
+      <PageHeader title="Client portal links" subtitle="Share a read-only, PIN-protected progress view with each client." />
       <PortalLinksPanel
         projectId={projectId}
         links={(links ?? []).map((l) => ({ ...l, last_opened: lastOpened.get(l.id) ?? null }))}
