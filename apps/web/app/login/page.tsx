@@ -102,9 +102,9 @@ export default function LoginPage() {
                 <span className="truncate">Code sent to <span className="font-medium text-emerald-200">{target}</span></span>
               </div>
               <div>
-                <label className="label">6-digit code</label>
-                <input className="input text-center text-lg font-semibold tracking-[0.4em]"
-                  placeholder="••••••" inputMode="numeric" maxLength={6} value={code}
+                <label className="label">Login code</label>
+                <input className="input text-center text-lg font-semibold tracking-[0.3em]"
+                  placeholder="••••••" inputMode="numeric" maxLength={8} value={code}
                   onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
                   onKeyDown={(e) => e.key === "Enter" && code.length >= 6 && verify()} autoFocus />
               </div>
