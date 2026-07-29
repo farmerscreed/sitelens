@@ -285,3 +285,15 @@ logged here so the founder can review drift. Newest at the bottom.
     and component classes live in `app/globals.css`; the app shell (sidebar + topbar + org
     switcher) is `components/Shell.tsx` and hides itself on `/login` and `/portal/*`. Full
     reference: `docs/WEB_CONSOLE.md`.
+
+40. **Multi-project: engine existed, added the front door + a sticky switcher.** Every
+    operational table already carried `project_id` and gated on `has_project_access()`, so
+    isolation was already DB-enforced; only a create/manage UI was missing. Added
+    `fn_create_project`/`fn_rename_project`/`fn_archive_project` (SECURITY DEFINER, org
+    re-derived from the token, admin/PM only — projects keep SELECT-only RLS, no direct
+    insert; Rule 1). The active project is sticky via an `sl_project` cookie resolved by
+    `lib/activeProject.ts` as **URL ?project= > cookie > first accessible** — and the cookie
+    is honoured only if the id is in the caller's RLS-scoped list, so a stale or copied
+    cookie can never surface another project's (or org's) data. Recipes / prices / plans stay
+    **org-wide on purpose** (a recipe and a price list apply across every project); only
+    site-specific data (buildings, stock, expenses, reports, portal links) is per-project.

@@ -24,6 +24,20 @@ domain; account owner tawokels@gmail.com). Email rate limit raised to 100/hr. Ph
 **UI redesigned** to a dark "command console" (amber hi-vis accent, glass panels, sidebar
 shell). Full architecture + design system documented in **`docs/WEB_CONSOLE.md`**.
 
+**Multi-project is fully usable.** The engine (project-scoped tables + `has_project_access`
+RLS) always existed; added the front door: migration `20260729000000_projects_write_fns`
+(`fn_create_project`/`fn_rename_project`/`fn_archive_project`, admin/PM only — **29 migrations
+now**), a `/projects` page (create/rename/archive), and a **sticky top-bar project switcher**
+(`sl_project` cookie; a stale/foreign cookie can never surface another project's data). Data
+is isolated per project; recipes/prices/plans are intentionally org-wide.
+
+**Inventory/usage built out.** Materials page shows the full catalog + stock value + a
+**Usage-vs-BOQ** section (planned recipe qty vs actual OUT, over-consumption flagged). Note:
+the founder org still has **0 material transactions** — the store reads empty until real
+opening stock is logged (IN). Email OTP length fixed 8→6.
+
+**New-machine setup:** see **`docs/DEV_SETUP.md`** (clone + env + run + Claude Code).
+
 **Production 500 FIXED:** server components were passing inline `onChange` to `<select>`
 (React forbids it) → crashed /board /materials /expenses /portal-links. Now a client
 `<ProjectPicker>`. All four return 307→login (verified), render correctly once signed in.

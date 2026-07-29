@@ -121,6 +121,25 @@ build and only fails at runtime. This crashed /board /materials /expenses /porta
 Fix = the client `components/ProjectPicker.tsx`. **Rule: any interactive control (onChange,
 onClick, …) belongs in a client component.** (Decision #38.)
 
+## 7b. Projects & the active project (multi-project)
+
+The app is multi-project per org. Isolation is DB-enforced: every operational table gates on
+`has_project_access(project_id)`, and `projects_select` = `org_id = current_org_id() AND
+has_project_access(id)`. Admins/PMs see all org projects; other roles only ones they're
+added to via `project_members`. Recipes / prices / plans are **org-wide by design** (shared
+across projects); buildings, stock, expenses, reports, portal links are per-project.
+
+- **Create/rename/archive** go through SECURITY DEFINER fns (`fn_create_project`,
+  `fn_rename_project`, `fn_archive_project`; migration `20260729000000_projects_write_fns`),
+  admin/PM only. Projects keep SELECT-only RLS — no direct client insert.
+- **Active project is sticky** via the `sl_project` cookie. `lib/activeProject.ts` resolves
+  it as **URL `?project=` > cookie > first accessible project**, honouring the cookie only if
+  the id is in the caller's RLS-scoped list (a stale/copied cookie falls back — it can never
+  surface another project's data).
+- **UI:** `/projects` (`components/ProjectsManager.tsx`) to create/manage; the top-bar
+  `components/ProjectSwitcher.tsx` (shown on `/board /materials /expenses /portal-links`)
+  switches the active project. `components/ProjectPicker.tsx` is now unused (kept for reuse).
+
 ## 7. Known-good verification
 
 - `cd apps/web && npm run build` → compiles, 17/17 routes.

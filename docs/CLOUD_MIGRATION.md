@@ -59,6 +59,13 @@ cloud-move time. Append as we go. Region target: managed Supabase, London
 - [x] **Auth `custom_access_token` hook enabled** → real logins carry `active_org_id`.
 - [x] `pg_cron` weekly digest registered.
 
+### Update 2026-07-29 (later) — projects module
+
+- [x] **Migration `20260729000000_projects_write_fns`** applied to cloud (now **29 migrations**):
+      `fn_create_project` / `fn_rename_project` / `fn_archive_project` (SECURITY DEFINER,
+      admin/PM only). Projects remain SELECT-only RLS. New-machine setup guide added:
+      **docs/DEV_SETUP.md**. Email OTP length corrected 8→6 (`mailer_otp_length`).
+
 ### Update 2026-07-29 — web live, email login, org provisioned
 
 - [x] **Provisioned org #1** Vantara International (founder auth id `…0002`, login
