@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { activeOrgFromToken } from "@/lib/activeOrg";
 import { Board } from "@/components/Board";
 import { StampBuildings } from "@/components/StampBuildings";
+import { PageHeader } from "@/components/PageHeader";
+import { ProjectPicker } from "@/components/ProjectPicker";
 
 // The board (F-BOARD-1/2): every building as a card, in columns by stage.
 export default async function BoardPage({ searchParams }: { searchParams: { project?: string } }) {
@@ -23,17 +25,10 @@ export default async function BoardPage({ searchParams }: { searchParams: { proj
   ]);
 
   return (
-    <main className="space-y-5">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold">Board</h1>
-        <form>
-          <select name="project" defaultValue={projectId}
-            className="rounded-md border border-neutral-300 px-2 py-1 text-sm dark:border-neutral-700 dark:bg-neutral-900"
-            onChange={(e) => { (e.target.form as HTMLFormElement).requestSubmit(); }}>
-            {(projects ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-        </form>
-      </header>
+    <div className="space-y-6">
+      <PageHeader title="Board" subtitle="Every building as a card, tracked by construction stage.">
+        <ProjectPicker projects={projects ?? []} value={projectId} />
+      </PageHeader>
 
       <StampBuildings
         projectId={projectId}
@@ -43,6 +38,6 @@ export default async function BoardPage({ searchParams }: { searchParams: { proj
       />
 
       <Board rows={rows ?? []} batches={batches ?? []} types={types ?? []} />
-    </main>
+    </div>
   );
 }

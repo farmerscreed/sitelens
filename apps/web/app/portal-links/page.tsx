@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { PortalLinksPanel } from "@/components/PortalLinksPanel";
+import { PageHeader } from "@/components/PageHeader";
+import { ProjectPicker } from "@/components/ProjectPicker";
 
 export default async function PortalLinksPage({ searchParams }: { searchParams: { project?: string } }) {
   const supabase = createClient();
@@ -25,21 +27,14 @@ export default async function PortalLinksPage({ searchParams }: { searchParams: 
   for (const a of accesses ?? []) if (a.pin_success && !lastOpened.has(a.link_id)) lastOpened.set(a.link_id, a.accessed_at);
 
   return (
-    <main className="space-y-6">
-      <header className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Client portal links</h1>
-        <form>
-          <select name="project" defaultValue={projectId}
-            className="rounded-md border border-neutral-300 px-2 py-1 text-sm dark:border-neutral-700 dark:bg-neutral-900"
-            onChange={(e) => (e.target.form as HTMLFormElement).requestSubmit()}>
-            {(projects ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-        </form>
-      </header>
+    <div className="space-y-6">
+      <PageHeader title="Client portal links" subtitle="Share a read-only, PIN-protected progress view with each client.">
+        <ProjectPicker projects={projects ?? []} value={projectId} />
+      </PageHeader>
       <PortalLinksPanel
         projectId={projectId}
         links={(links ?? []).map((l) => ({ ...l, last_opened: lastOpened.get(l.id) ?? null }))}
       />
-    </main>
+    </div>
   );
 }

@@ -2,6 +2,9 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { activeOrgFromToken } from "@/lib/activeOrg";
 import { LogTxnForm } from "@/components/LogTxnForm";
+import { PageHeader } from "@/components/PageHeader";
+import { ProjectPicker } from "@/components/ProjectPicker";
+import { IconAlert } from "@/components/icons";
 
 // Materials: per-project running balances (maintained by the DB under lock, never
 // recomputed on read) + reorder alerts + log IN/OUT. All writes via fn_log_material_txn.
@@ -28,60 +31,64 @@ export default async function MaterialsPage({ searchParams }: { searchParams: { 
   const rows = (balances ?? []).map((b) => ({ ...b, m: mat.get(b.material_id) }));
 
   return (
-    <main className="space-y-6">
-      <header className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Materials</h1>
-        <form>
-          <select name="project" defaultValue={projectId}
-            className="rounded-md border border-neutral-300 px-2 py-1 text-sm dark:border-neutral-700 dark:bg-neutral-900"
-            onChange={(e) => (e.target.form as HTMLFormElement).requestSubmit()}>
-            {(projects ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-        </form>
-      </header>
+    <div className="space-y-6">
+      <PageHeader title="Materials" subtitle="Running balances maintained by the database under lock — never recomputed on read.">
+        <ProjectPicker projects={projects ?? []} value={projectId} />
+      </PageHeader>
 
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-neutral-200 text-left dark:border-neutral-800">
-            <th className="py-1">Material</th><th className="text-right">Balance</th><th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => {
-            const low = r.m?.reorder_level != null && Number(r.balance) < Number(r.m.reorder_level);
-            return (
-              <tr key={r.material_id} className="border-b border-neutral-100 dark:border-neutral-900">
-                <td className="py-1">{r.m?.name ?? r.material_id}</td>
-                <td className="text-right font-mono">{Number(r.balance).toLocaleString()} {r.m?.unit}</td>
-                <td className="text-right">{low && <span className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-800">reorder</span>}</td>
+      <div className="card p-0 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="table-base">
+            <thead>
+              <tr>
+                <th>Material</th>
+                <th className="text-right">Balance</th>
+                <th className="text-right">Status</th>
               </tr>
-            );
-          })}
-          {rows.length === 0 && <tr><td colSpan={3} className="py-2 text-neutral-500">No stock yet — log a delivery below.</td></tr>}
-        </tbody>
-      </table>
-
-      {toOrder.length > 0 && (
-        <section className="rounded-lg border border-amber-300 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950/30">
-          <h2 className="mb-2 text-sm font-medium">BOQ-aware reorder advice (a proposal)</h2>
-          <table className="w-full text-sm">
-            <thead><tr className="text-left text-neutral-500"><th>Material</th><th className="text-right">Remaining need</th><th className="text-right">In stock</th><th className="text-right">Order</th></tr></thead>
+            </thead>
             <tbody>
-              {toOrder.map((r, k) => (
-                <tr key={k}>
-                  <td className="py-1">{r.material_name}</td>
-                  <td className="text-right font-mono">{Number(r.remaining).toLocaleString()}</td>
-                  <td className="text-right font-mono">{Number(r.in_stock).toLocaleString()}</td>
-                  <td className="text-right font-mono font-semibold">{Number(r.order_qty).toLocaleString()}</td>
-                </tr>
-              ))}
+              {rows.map((r) => {
+                const low = r.m?.reorder_level != null && Number(r.balance) < Number(r.m.reorder_level);
+                return (
+                  <tr key={r.material_id}>
+                    <td className="font-medium text-white">{r.m?.name ?? r.material_id}</td>
+                    <td className="text-right font-mono">{Number(r.balance).toLocaleString()} <span className="text-[#8b95a7]">{r.m?.unit}</span></td>
+                    <td className="text-right">{low && <span className="badge badge-accent"><IconAlert className="h-3.5 w-3.5" />reorder</span>}</td>
+                  </tr>
+                );
+              })}
+              {rows.length === 0 && <tr><td colSpan={3} className="py-6 text-center text-[#8b95a7]">No stock yet — log a delivery below.</td></tr>}
             </tbody>
           </table>
-          <p className="mt-2 text-xs text-neutral-500">Remaining requirement (recipe − consumed) minus current stock. A proposal — you decide.</p>
+        </div>
+      </div>
+
+      {toOrder.length > 0 && (
+        <section className="card border-accent-500/25 bg-accent-500/[0.04]">
+          <h2 className="mb-1 flex items-center gap-2 text-sm font-semibold text-accent-200">
+            <IconAlert className="h-4 w-4" /> BOQ-aware reorder advice
+            <span className="badge badge-accent">proposal</span>
+          </h2>
+          <p className="mb-3 text-xs text-[#8b95a7]">Remaining requirement (recipe − consumed) minus current stock. A proposal — you decide.</p>
+          <div className="overflow-x-auto">
+            <table className="table-base">
+              <thead><tr><th>Material</th><th className="text-right">Remaining need</th><th className="text-right">In stock</th><th className="text-right">Order</th></tr></thead>
+              <tbody>
+                {toOrder.map((r, k) => (
+                  <tr key={k}>
+                    <td className="font-medium text-white">{r.material_name}</td>
+                    <td className="text-right font-mono">{Number(r.remaining).toLocaleString()}</td>
+                    <td className="text-right font-mono">{Number(r.in_stock).toLocaleString()}</td>
+                    <td className="text-right font-mono font-semibold text-accent-300">{Number(r.order_qty).toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </section>
       )}
 
       <LogTxnForm projectId={projectId} materials={materials ?? []} buildings={buildings ?? []} />
-    </main>
+    </div>
   );
 }

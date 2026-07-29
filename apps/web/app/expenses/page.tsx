@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ExpensesPanel } from "@/components/ExpensesPanel";
+import { PageHeader } from "@/components/PageHeader";
+import { ProjectPicker } from "@/components/ProjectPicker";
 
 export default async function ExpensesPage({ searchParams }: { searchParams: { project?: string } }) {
   const supabase = createClient();
@@ -17,22 +19,13 @@ export default async function ExpensesPage({ searchParams }: { searchParams: { p
   ]);
 
   return (
-    <main className="space-y-6">
-      <header className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Expenses</h1>
-        <form>
-          <select name="project" defaultValue={projectId}
-            className="rounded-md border border-neutral-300 px-2 py-1 text-sm dark:border-neutral-700 dark:bg-neutral-900"
-            onChange={(e) => (e.target.form as HTMLFormElement).requestSubmit()}>
-            {(projects ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-        </form>
-      </header>
-      <p className="text-sm text-neutral-500">
-        An expense is <strong>committed</strong> when recorded and <strong>spent</strong>
-        only once approved. Amounts over ₦250k need Admin approval.
-      </p>
+    <div className="space-y-6">
+      <PageHeader
+        title="Expenses"
+        subtitle="Committed when recorded, spent only once approved. Amounts over ₦250k need Admin approval.">
+        <ProjectPicker projects={projects ?? []} value={projectId} />
+      </PageHeader>
       <ExpensesPanel projectId={projectId} expenses={expenses ?? []} budgetLines={budgetLines ?? []} />
-    </main>
+    </div>
   );
 }
