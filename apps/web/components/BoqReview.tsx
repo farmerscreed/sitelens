@@ -13,6 +13,7 @@ type Row = {
   is_priced: boolean; is_provisional: boolean;
   suggested_stage_id: string | null; suggested_kind: string | null;
   mix_ratio: string | null; material_guess: string | null; flags: string[] | null;
+  row_no: number | null;
 };
 type Material = { id: string; name: string; unit: string };
 type Stage = { id: string; name: string; sequence: number };
@@ -36,6 +37,36 @@ const FLAG_LABEL: Record<string, string> = {
   ditto_unresolved: "ditto unresolved", rate_not_applicable: "rate N/A",
 };
 
+// One editable "create this material" candidate: unmapped supply/fitting rows,
+// grouped by the AI's material guess (or the first 40 chars of the text).
+type MatDraft = {
+  key: string; on: boolean; name: string; unit: string;
+  price: string; priceOn: boolean; hasRate: boolean; row_ids: string[];
+};
+function buildMatCandidates(items: Row[]): MatDraft[] {
+  const map = new Map<string, MatDraft>();
+  for (const r of items) {
+    if (r.mapped_material_id) continue;
+    if (r.suggested_kind !== "material_supply" && r.suggested_kind !== "fitting") continue;
+    const text = (r.resolved_text ?? r.raw_text ?? "").trim();
+    const label = (r.material_guess ?? text.slice(0, 40)).trim();
+    if (!label) continue;
+    const key = label.toLowerCase();
+    let d = map.get(key);
+    if (!d) {
+      d = { key, on: true, name: label, unit: r.unit_normalized ?? r.parsed_unit ?? "", price: "", priceOn: true, hasRate: false, row_ids: [] };
+      map.set(key, d);
+    }
+    d.row_ids.push(r.id);
+    if (!d.unit && (r.unit_normalized ?? r.parsed_unit)) d.unit = r.unit_normalized ?? r.parsed_unit ?? "";
+    // Only a genuine supply rate may prefill a price (§7 guardrail — the server enforces it too).
+    if (!d.hasRate && r.suggested_kind === "material_supply" && r.parsed_rate != null) {
+      d.hasRate = true; d.price = String(r.parsed_rate);
+    }
+  }
+  return [...map.values()];
+}
+
 // Review v2 (BOQ_TRUE_COST_DESIGN §11): reconciliation banner, element groups,
 // risk-first highlighting, full descriptions, unpriced scope surfaced. Every row
 // stays a proposal until fn_confirm_boq_import_v2 — the only write path into the
@@ -49,7 +80,11 @@ export function BoqReview({
 }) {
   const router = useRouter();
   const supabase = createClient();
-  const items = useMemo(() => rows.filter((r) => r.row_kind === "item"), [rows]);
+  const items = useMemo(
+    () => rows.filter((r) => r.row_kind === "item")
+      .sort((a, b) => (a.row_no ?? Number.MAX_SAFE_INTEGER) - (b.row_no ?? Number.MAX_SAFE_INTEGER)),
+    [rows],
+  );
   // Stage defaults to the extractor's SUGGESTION; otherwise unassigned — the human places it.
   const [state, setState] = useState(
     items.map((r) => ({
@@ -64,6 +99,42 @@ export function BoqReview({
   );
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; t: string } | null>(null);
+
+  // "Set up from this bill" — bootstrap stages/materials for a young org.
+  const [matDrafts, setMatDrafts] = useState<MatDraft[]>(() => buildMatCandidates(items));
+  const [bootMsg, setBootMsg] = useState<{ ok: boolean; t: string } | null>(null);
+  const stageBootstrapNeeded = items.some((r) => !r.suggested_stage_id && !!r.section_path?.[0]);
+  const patchMat = (i: number, p: Partial<MatDraft>) =>
+    setMatDrafts((s) => s.map((d, j) => (j === i ? { ...d, ...p } : d)));
+  const matSelected = matDrafts.filter((d) => d.on && d.name.trim() && d.unit.trim());
+
+  async function bootstrapStages() {
+    setBusy(true); setBootMsg(null);
+    const { data, error } = await supabase.rpc("fn_bootstrap_stages_from_import", { p_import: importId });
+    setBusy(false);
+    if (error) setBootMsg({ ok: false, t: error.message });
+    else {
+      const d = data as { created?: number; assigned?: number } | null;
+      setBootMsg({ ok: true, t: `Created ${d?.created ?? 0} stage(s), assigned ${d?.assigned ?? 0} row(s) — reloading…` });
+      setTimeout(() => window.location.reload(), 1200);
+    }
+  }
+  async function bootstrapMaterials() {
+    setBusy(true); setBootMsg(null);
+    const p_selections = matSelected.map((d) => ({
+      name: d.name.trim(), unit: d.unit.trim(),
+      price: d.hasRate && d.priceOn && d.price !== "" ? Number(d.price) : "",
+      row_ids: d.row_ids,
+    }));
+    const { data, error } = await supabase.rpc("fn_bootstrap_materials_from_import", { p_import: importId, p_selections });
+    setBusy(false);
+    if (error) setBootMsg({ ok: false, t: error.message });
+    else {
+      const d = data as { created?: number; priced?: number; rows_mapped?: number } | null;
+      setBootMsg({ ok: true, t: `Created ${d?.created ?? 0} material(s), seeded ${d?.priced ?? 0} price(s), mapped ${d?.rows_mapped ?? 0} row(s) — reloading…` });
+      setTimeout(() => window.location.reload(), 1200);
+    }
+  }
 
   const byId = useMemo(() => new Map(items.map((r, i) => [r.id, i])), [items]);
   const groups = useMemo(() => {
@@ -163,6 +234,84 @@ export function BoqReview({
         <p className="flex items-center gap-1.5 text-sm text-accent-300">
           <IconAlert className="h-4 w-4" />{needsAttention} row(s) need attention (flagged, or a supply line with no material) — they&apos;re highlighted below.
         </p>
+      )}
+
+      {/* Set up from this bill — the bill as the young org's setup tool. Only shown
+          while there is something to bootstrap; both writes are SECURITY DEFINER
+          RPCs and everything on screen is editable before confirming (Rule 3). */}
+      {(stageBootstrapNeeded || matDrafts.length > 0) && (
+        <section className="card">
+          <h2 className="text-sm font-semibold text-white">Set up from this bill</h2>
+          <p className="mt-1 text-xs text-[#8b95a7]">
+            Missing stages or catalog materials? Create them straight from the bill — check and edit everything below first.
+          </p>
+          {bootMsg && (
+            <div className={`mt-3 flex items-center gap-2 rounded-xl border px-3.5 py-2.5 text-sm ${
+              bootMsg.ok ? "border-emerald-500/20 bg-emerald-500/[0.06] text-emerald-300"
+                         : "border-red-500/20 bg-red-500/[0.06] text-red-300"}`}>
+              {bootMsg.ok ? <IconCheck className="h-4 w-4" /> : <IconAlert className="h-4 w-4" />}{bootMsg.t}
+            </div>
+          )}
+
+          {stageBootstrapNeeded && (
+            <div className="mt-4 rounded-xl border border-white/[0.08] bg-white/[0.02] p-4">
+              <p className="text-sm text-[#c7cedb]">
+                Some rows have no stage yet. This fuzzy-matches the bill&apos;s elements against stages you already made
+                (your sequence is never restructured) and appends only the missing ones, then assigns every row.
+              </p>
+              <button className="btn btn-primary mt-3" disabled={busy} onClick={bootstrapStages}>
+                {busy ? "Working…" : "Create/assign stages from the bill's elements"}
+              </button>
+            </div>
+          )}
+
+          {matDrafts.length > 0 && (
+            <div className="mt-4 overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.02]">
+              <p className="px-4 pt-4 text-sm text-[#c7cedb]">
+                {matDrafts.length} supply/fitting line(s) match nothing in your catalog. Edit the names and units, then
+                create them in one go — rows are mapped automatically.
+              </p>
+              <div className="mt-3 overflow-x-auto">
+                <table className="table-base min-w-[720px]">
+                  <thead>
+                    <tr><th>Create</th><th className="min-w-[16rem]">Material name</th><th>Unit</th><th>Rows</th><th>Price (₦)</th></tr>
+                  </thead>
+                  <tbody>
+                    {matDrafts.map((d, i) => (
+                      <tr key={d.key}>
+                        <td><input type="checkbox" checked={d.on} onChange={(e) => patchMat(i, { on: e.target.checked })}
+                          className="h-4 w-4 rounded border-white/20 bg-transparent accent-accent-500" /></td>
+                        <td><input className="input py-1.5" value={d.name} onChange={(e) => patchMat(i, { name: e.target.value })} /></td>
+                        <td><input className="input w-20 py-1.5" placeholder="unit" value={d.unit} onChange={(e) => patchMat(i, { unit: e.target.value })} /></td>
+                        <td className="text-[#8b95a7]">{d.row_ids.length}</td>
+                        <td>
+                          {d.hasRate ? (
+                            <div className="min-w-[13rem]">
+                              <input type="number" min="0" className="input w-28 py-1.5" value={d.price}
+                                onChange={(e) => patchMat(i, { price: e.target.value })} />
+                              <label className="mt-1 flex items-start gap-1.5 text-[11px] leading-snug text-[#8b95a7]">
+                                <input type="checkbox" checked={d.priceOn} onChange={(e) => patchMat(i, { priceOn: e.target.checked })}
+                                  className="mt-0.5 h-3.5 w-3.5 rounded border-white/20 bg-transparent accent-accent-500" />
+                                set as current price (all-in BOQ rate — includes delivery/labour)
+                              </label>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-[#5b6473]">— no supply rate —</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="p-4">
+                <button className="btn btn-primary" disabled={busy || matSelected.length === 0} onClick={bootstrapMaterials}>
+                  {busy ? "Creating…" : `Create ${matSelected.length} material${matSelected.length === 1 ? "" : "s"} in my catalog`}
+                </button>
+              </div>
+            </div>
+          )}
+        </section>
       )}
 
       {/* Element groups. */}
