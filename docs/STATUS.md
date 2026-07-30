@@ -5,7 +5,7 @@ session. Newest status at the top of each section._
 
 ---
 
-## ▶ NEXT SESSION — BOQ build COMPLETE (Phases 0–3 deployed 2026-07-30). All migrations (34) + edge fn + web live on cloud; 22 suites green. Remaining: founder smoke-tests the real-AI upload + assemblies/EV pages on sitelens-eosin.vercel.app. Superseded plan below:
+## ▶ NEXT SESSION — BOQ build COMPLETE (Phases 0–3 deployed 2026-07-30). All migrations (34) + edge fn + web live on cloud; 22 suites green. Bootstrap-from-bill + live progress shipped (a62c339/daa421b, migration 36 on cloud): wizard readiness note + real progress stepper (polls boq_imports.progress); review "Set up from this bill" panel — one-click stages-from-elements (fuzzy, append-only) + materials checklist w/ seeded supply prices (§7 guardrail server-enforced). Founder re-tests the upload flow. Superseded plan below:
 
 **Phases 0–2 of `docs/BOQ_TRUE_COST_DESIGN.md` v2 are BUILT and verified locally**
 (33 migrations, 20 suites green incl. the real NPC Xora Bay gate: 130 items, 0 junk,
