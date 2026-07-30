@@ -81,6 +81,15 @@ export function BoqReview({
     const ids = new Set(rowsIn.map((r) => r.id));
     setState((s) => s.map((r) => (ids.has(r.row_id) ? { ...r, include } : r)));
   }
+  // §7: only material_supply rows with a rate become price PROPOSALS (composite/
+  // labour BOQ rates are all-in and never touch the price list). Human accepts on /ai.
+  async function proposePrices() {
+    setBusy(true); setMsg(null);
+    const { data, error } = await supabase.rpc("fn_propose_prices_from_import", { p_import: importId });
+    setBusy(false);
+    if (error) setMsg({ ok: false, t: error.message });
+    else setMsg({ ok: true, t: data > 0 ? `${data} price proposal(s) created — decide on the AI proposals page.` : "No proposable rates (only true supply items with a rate qualify)." });
+  }
   async function confirm() {
     setBusy(true); setMsg(null);
     const confirmations = state.filter((r) => r.include && r.material_id).map((r) => ({
@@ -216,6 +225,7 @@ export function BoqReview({
         <button className="btn btn-primary" onClick={confirm} disabled={busy || mappedCount === 0}>
           <IconCheck className="h-4 w-4" />{busy ? "Confirming…" : `Confirm ${mappedCount} row${mappedCount === 1 ? "" : "s"} into recipe`}
         </button>
+        <button className="btn btn-ghost" onClick={proposePrices} disabled={busy}>Propose prices from this bill</button>
         <span className="text-xs text-[#8b95a7]">Only ticked rows with a material are written. Same material + stage sums.</span>
         {msg && (
           <span className={`flex items-center gap-1.5 text-sm ${msg.ok ? "text-emerald-300" : "text-red-300"}`}>

@@ -315,3 +315,24 @@ logged here so the founder can review drift. Newest at the bottom.
     server-function-only (Rule 1). AI answers render through a tiny in-house markdown
     component (no external lib; CSP-safe) and are prompted for a direct-answer → figures →
     suggested-action shape so output is readable and actionable.
+
+## 2026-07-30 — BOQ true-cost build (Phases 0–2)
+
+- **#26 · Take-off is computed, never materialized.** Assembly expansion to raw
+  materials lives in views (`type_material_takeoff`, `work_item_cost` via
+  `fn_work_item_unit_cost`) rather than being written into `type_boq_items` —
+  avoids a second writer fighting the confirm path and honours Rule 4 (cost is
+  always live). Only direct `material_supply` work items also feed
+  `type_boq_items`, keeping the existing cost/usage/reorder engines working.
+- **#27 · materials_catalog.id got a DEFAULT.** `fn_upsert_material` failed for
+  any NEW material (id NOT NULL, no default; seed's explicit ids hid it — latent
+  since M5, live in cloud). Added `DEFAULT gen_random_uuid()` in
+  `truecost_core`, same as sibling tables. PRD's client-generated-UUIDv7 rule is
+  about idempotency of mutation tables; catalog upserts are keyed on
+  (org, lower(name)), so a server default is safe.
+- **#28 · fn_confirm_boq_import (v1) now sums same-(stage,material) rows and the
+  recipe unique index is NULLS NOT DISTINCT** — Phase 0 hotfix; v1 semantics
+  otherwise unchanged (later import replaces).
+- **#29 · Unpriced-item rate proposals are the live build-up itself** (attach a
+  material/assembly → `work_item_cost` prices it); no separate proposal fn in
+  Phase 2. Design doc §6's "propose rates" is satisfied by the view + review UI.

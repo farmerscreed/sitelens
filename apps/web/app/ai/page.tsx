@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { activeOrgFromToken } from "@/lib/activeOrg";
 import { AiProposals } from "@/components/AiProposals";
 import { PageHeader } from "@/components/PageHeader";
 
@@ -9,6 +10,8 @@ export default async function AiPage() {
   const supabase = createClient();
   const { data: userRes } = await supabase.auth.getUser();
   if (!userRes.user) redirect("/login");
+  const { data: sessionRes } = await supabase.auth.getSession();
+  const orgId = activeOrgFromToken(sessionRes.session?.access_token);
 
   const { data: proposals } = await supabase
     .from("ai_inferences")
@@ -30,7 +33,7 @@ export default async function AiPage() {
             "Either way your choice is recorded as a training example.",
           ],
         }} />
-      <AiProposals proposals={proposals ?? []} />
+      <AiProposals proposals={proposals ?? []} orgId={orgId} />
     </div>
   );
 }
