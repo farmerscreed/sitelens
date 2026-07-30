@@ -21,10 +21,11 @@ export function BoqReview({
 }) {
   const router = useRouter();
   const supabase = createClient();
+  // Stage starts UNASSIGNED — the human places each row (never silently stages[0]).
   const [state, setState] = useState(
     rows.map((r) => ({
       row_id: r.id, include: true, material_id: r.mapped_material_id ?? "",
-      stage_id: stages[0]?.id ?? "", quantity: r.parsed_qty ?? 0, unit: r.parsed_unit ?? "",
+      stage_id: "", quantity: r.parsed_qty ?? 0, unit: r.parsed_unit ?? "",
       raw_text: r.raw_text, confidence: r.confidence,
     })),
   );
@@ -76,7 +77,7 @@ export function BoqReview({
                   </td>
                   <td>
                     <select className="select py-1.5" value={r.stage_id} onChange={(e) => patch(i, { stage_id: e.target.value })}>
-                      <option value="">—</option>
+                      <option value="">— unassigned —</option>
                       {stages.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                     </select>
                   </td>

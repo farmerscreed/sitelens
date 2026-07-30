@@ -5,24 +5,26 @@ session. Newest status at the top of each section._
 
 ---
 
-## ▶ NEXT SESSION — implement the BOQ true-cost model
+## ▶ NEXT SESSION — implement the BOQ true-cost model (design v2)
 
-**Read `docs/BOQ_TRUE_COST_DESIGN.md` first — it is the approved design and the task.**
-The founder reviewed a real QS BOQ and signed off on a **hybrid true-cost model**: import
-BOQ **work-items** faithfully, expand composites (concrete/blockwork) into **raw materials
-via mixes**, track **labour** too — so a building's true cost (materials + labour) is known
-and monitored start→finish.
+**Read `docs/BOQ_TRUE_COST_DESIGN.md` (v2, 2026-07-30) first — it is the authoritative
+design + implementation plan, awaiting founder approval.** v2 came out of a line-by-line
+QS review of the founder's real bill (`docs/BOQ FOR NPC XORA BAY … .xlsx`) against the
+shipped pipeline. Key v2 additions: document-grammar extraction (both lanes through one
+AI brain — spreadsheet grid goes to the model as text), **reconciliation against the
+bill's own totals** as the import's headline, **priced-vs-unpriced scope** as first-class
+(the sample's ₦280m total omits ~₦40–60m of measured scope), assemblies with waste
+factors / reusable formwork / block production routes, material conversions (densities +
+rebar t↔pieces), price-proposal guardrails (composite BOQ rates must never enter
+`material_prices`), and review UX v2. v1's open questions are now decided defaults
+(doc §13) the founder can veto.
 
-Locked decisions (see the doc §1): **Hybrid** modelling · do **both** cost & stock **plus
-work-done tracking** · **AI reads mix ratios from the BOQ** (editable-standard fallback) ·
-**design-doc-first** (this deliverable — no schema written yet).
-
-Build in phases (doc §7): **Phase 1** smart AI extraction (segment/classify/stage/
-map-material/read-mix + work-items & rates → review → confirm) → **Phase 2** mixes &
-material take-off + dated labour rates → **Phase 3** work-done & true-cost (earned value vs
-actual). **5 open questions in doc §6 need founder answers before/early in the build.**
-Respect all four Golden Rules (doc §8). The BOQ import already works today for plain
-extraction (Excel client-side, PDF/photo via AI) — this makes it *intelligent*.
+**⚠️ Phase 0 ships first (doc §9): two LIVE bugs in `fn_confirm_boq_import`** —
+(1) two rows mapping to one (stage, material) overwrite instead of sum (sample: 8.98 t
+of rebar collapses to 0.89 t); (2) plain unique index → NULL-stage confirms duplicate on
+re-run. Then Phase 1 faithful decode → Phase 2 work items/assemblies/take-off →
+Phase 3 work-done/earned value. Each phase has a gate in doc §12; Phase 1's gate is the
+real NPC Xora Bay file reconciling within 0.5% with zero junk rows.
 
 ---
 
