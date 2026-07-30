@@ -68,9 +68,13 @@ export function BoqImportWizard({ orgId, types }: { orgId: string; types: Type[]
         const XLSX = await import("xlsx");
         const wb = XLSX.read(new Uint8Array(await file.arrayBuffer()), { type: "array" });
         const grid = XLSX.utils.sheet_to_json<any[]>(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: "", blankrows: true });
-        if (!grid.length) { setErr("That sheet looks empty."); return; }
+        // Trim the trailing all-blank tail (real bills carry hundreds of empty rows).
+        let last = grid.length - 1;
+        while (last >= 0 && (grid[last] ?? []).every((c) => String(c ?? "").trim() === "")) last--;
+        const trimmed = grid.slice(0, last + 1);
+        if (!trimmed.length) { setErr("That sheet looks empty."); return; }
         body = {
-          orgId, buildingTypeId: typeId, gridRows: grid,
+          orgId, buildingTypeId: typeId, gridRows: trimmed,
           format: file.name.toLowerCase().endsWith(".csv") ? "csv" : "xlsx",
         };
       } else {

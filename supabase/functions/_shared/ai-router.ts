@@ -96,12 +96,13 @@ Quantities (SMM/POMI style). Rules you must follow exactly:
   remove/compact/protect), plant, provisional, fitting (doors/windows/sanitary),
   other.`;
 
-async function orChat(body: Record<string, unknown>): Promise<string> {
+async function orChat(body: Record<string, unknown>, timeoutMs = 30000): Promise<string> {
   const key = Deno.env.get("OPENROUTER_API_KEY");
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "content-type": "application/json" },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(timeoutMs),
   });
   if (!res.ok) throw new Error(`OpenRouter ${res.status}: ${await res.text()}`);
   const data = await res.json();
@@ -130,7 +131,12 @@ export async function enrichBoqRows(
   const stageList = stages.map((s) => `${s.sequence}. ${s.name}`).join("\n");
   const index = new Map(rows.map((r) => [r.row_no, r]));
 
-  for (const [el, chunk] of byElement) {
+  // ALL element chunks run CONCURRENTLY, each with its own timeout and its own
+  // failure isolation — the edge wall clock is ~150s, and 15 sequential model
+  // calls killed the worker on the first real bill. Enrichment is best-effort by
+  // design: any chunk that fails or times out simply leaves the deterministic
+  // rows untouched.
+  const enrichChunk = async ([el, chunk]: [string, BoqV2Row[]]) => {
     const lines = chunk.map((r) =>
       JSON.stringify({ row_no: r.row_no, kind: r.row_kind, text: r.resolved_text ?? r.raw_text,
         qty: r.qty, unit: r.unit, rate: r.rate })).join("\n");
@@ -142,27 +148,26 @@ export async function enrichBoqRows(
           (stageList ? `\nRecipe stages:\n${stageList}` : "") },
         { role: "user", content: `Element: ${el}\nRows:\n${lines}` },
       ],
-    });
-    try {
-      const out = JSON.parse(sliceJson(text, "[", "]")) as Record<string, unknown>[];
-      for (const o of out) {
-        const r = index.get(Number(o.row_no));
-        if (!r) continue;                          // AI cannot invent rows
-        if (o.row_kind === "note" || o.row_kind === "item") r.row_kind = o.row_kind as string;
-        if (o.suggested_kind) r.suggested_kind = String(o.suggested_kind);
-        if (o.mix_ratio) r.mix_ratio = String(o.mix_ratio);
-        if (o.material_guess) r.material_guess = String(o.material_guess);
-        if (o.stage_name) {
-          const want = String(o.stage_name).toLowerCase();
-          const hit = stages.find((s) => s.name.toLowerCase() === want) ??
-                      stages.find((s) => s.name.toLowerCase().includes(want) || want.includes(s.name.toLowerCase()));
-          if (hit) r.suggested_stage_id = hit.id;
-        }
-        if (o.confidence != null) r.confidence = Number(o.confidence);
-        if (o.field_confidence) r.field_confidence = o.field_confidence as Record<string, number>;
+    }, 45000);
+    const out = JSON.parse(sliceJson(text, "[", "]")) as Record<string, unknown>[];
+    for (const o of out) {
+      const r = index.get(Number(o.row_no));
+      if (!r) continue;                          // AI cannot invent rows
+      if (o.row_kind === "note" || o.row_kind === "item") r.row_kind = o.row_kind as string;
+      if (o.suggested_kind) r.suggested_kind = String(o.suggested_kind);
+      if (o.mix_ratio) r.mix_ratio = String(o.mix_ratio);
+      if (o.material_guess) r.material_guess = String(o.material_guess);
+      if (o.stage_name) {
+        const want = String(o.stage_name).toLowerCase();
+        const hit = stages.find((s) => s.name.toLowerCase() === want) ??
+                    stages.find((s) => s.name.toLowerCase().includes(want) || want.includes(s.name.toLowerCase()));
+        if (hit) r.suggested_stage_id = hit.id;
       }
-    } catch { /* enrichment is best-effort; deterministic rows stand on their own */ }
-  }
+      if (o.confidence != null) r.confidence = Number(o.confidence);
+      if (o.field_confidence) r.field_confidence = o.field_confidence as Record<string, number>;
+    }
+  };
+  await Promise.allSettled([...byElement.entries()].map(enrichChunk));
   return rows;
 }
 
@@ -210,6 +215,7 @@ Include collection/summary rows WITH their amounts — they are the check values
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "content-type": "application/json" },
       body: JSON.stringify({ model, ...(isImage ? {} : { plugins: [{ id: "file-parser", pdf: { engine: "native" } }] }), messages, max_tokens: 16000 }),
+      signal: AbortSignal.timeout(100000),
     });
     if (!res.ok) throw new Error(`OpenRouter ${res.status}: ${await res.text()}`);
     const data = await res.json();
