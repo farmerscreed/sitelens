@@ -16,6 +16,7 @@ type Row = {
 };
 type Material = { id: string; name: string; unit: string };
 type Stage = { id: string; name: string; sequence: number };
+type Assembly = { id: string; name: string; unit: string };
 type Reconciliation = {
   extracted_total: number; stated_total: number | null; variance_pct: number | null;
   sections: { element: string; extracted: number; stated: number | null; ok: boolean }[];
@@ -24,6 +25,9 @@ type Reconciliation = {
 
 const ngn = (n: number | null | undefined) =>
   n == null ? "—" : `₦${Number(n).toLocaleString("en-NG", { maximumFractionDigits: 0 })}`;
+
+// Every work-item kind the bill can carry (work_item_kind enum).
+const KINDS = ["material_supply", "composite", "labour", "plant", "provisional", "fitting", "other"] as const;
 
 const FLAG_LABEL: Record<string, string> = {
   amount_mismatch: "qty×rate ≠ amount", unknown_unit: "unknown unit",
@@ -34,13 +38,14 @@ const FLAG_LABEL: Record<string, string> = {
 
 // Review v2 (BOQ_TRUE_COST_DESIGN §11): reconciliation banner, element groups,
 // risk-first highlighting, full descriptions, unpriced scope surfaced. Every row
-// stays a proposal until fn_confirm_boq_import — the only write path into a recipe.
+// stays a proposal until fn_confirm_boq_import_v2 — the only write path into the
+// recipe's work items. Composite rows can point at an assembly for live costing.
 export function BoqReview({
-  importId, format, status, reconciliation, pricedTotal, unpricedCount, rows, materials, stages,
+  importId, format, status, reconciliation, pricedTotal, unpricedCount, rows, materials, stages, assemblies,
 }: {
   importId: string; format: string; status: string;
   reconciliation: Reconciliation; pricedTotal: number | null; unpricedCount: number | null;
-  rows: Row[]; materials: Material[]; stages: Stage[];
+  rows: Row[]; materials: Material[]; stages: Stage[]; assemblies: Assembly[];
 }) {
   const router = useRouter();
   const supabase = createClient();
@@ -49,7 +54,9 @@ export function BoqReview({
   const [state, setState] = useState(
     items.map((r) => ({
       row_id: r.id, include: true,
+      kind: r.suggested_kind ?? "other",
       material_id: r.mapped_material_id ?? "",
+      assembly_id: "",
       stage_id: r.suggested_stage_id ?? "",
       quantity: r.parsed_qty ?? 0,
       unit: r.unit_normalized ?? r.parsed_unit ?? "",
@@ -90,20 +97,31 @@ export function BoqReview({
     if (error) setMsg({ ok: false, t: error.message });
     else setMsg({ ok: true, t: data > 0 ? `${data} price proposal(s) created — decide on the AI proposals page.` : "No proposable rates (only true supply items with a rate qualify)." });
   }
+  // A row is confirmable when included and, only if it's a material supply line,
+  // mapped to a material — labour/composite/provisional lines need no material.
+  const confirmable = (s: (typeof state)[number]) =>
+    s.include && (s.kind !== "material_supply" || !!s.material_id);
+
   async function confirm() {
     setBusy(true); setMsg(null);
-    const confirmations = state.filter((r) => r.include && r.material_id).map((r) => ({
-      row_id: r.row_id, material_id: r.material_id, quantity: Number(r.quantity),
-      unit: r.unit, stage_id: r.stage_id || null,
+    const p_items = state.filter(confirmable).map((r) => ({
+      row_id: r.row_id, stage_id: r.stage_id || null, kind: r.kind,
+      material_id: r.material_id || null,
+      assembly_id: r.kind === "composite" ? r.assembly_id || null : null,
+      quantity: Number(r.quantity), unit: r.unit,
     }));
-    const { data, error } = await supabase.rpc("fn_confirm_boq_import", { p_import: importId, p_confirmations: confirmations });
+    const { data, error } = await supabase.rpc("fn_confirm_boq_import_v2", { p_import: importId, p_items });
     setBusy(false);
     if (error) setMsg({ ok: false, t: error.message });
-    else { setMsg({ ok: true, t: `Confirmed ${data} row(s) into the recipe.` }); router.refresh(); }
+    else { setMsg({ ok: true, t: `Confirmed ${data} work item(s) into the recipe.` }); router.refresh(); }
   }
 
-  const needsAttention = items.filter((r) => (r.flags?.length ?? 0) > 0 || !state[byId.get(r.id)!]?.material_id).length;
-  const mappedCount = state.filter((r) => r.include && r.material_id).length;
+  const rowRisky = (r: Row) => {
+    const s = state[byId.get(r.id)!];
+    return (r.flags?.length ?? 0) > 0 || (s?.kind === "material_supply" && !s?.material_id);
+  };
+  const needsAttention = items.filter(rowRisky).length;
+  const mappedCount = state.filter(confirmable).length;
   const rec = reconciliation;
   const varianceOk = rec?.variance_pct != null && Math.abs(rec.variance_pct) <= 0.5;
 
@@ -143,7 +161,7 @@ export function BoqReview({
       )}
       {needsAttention > 0 && (
         <p className="flex items-center gap-1.5 text-sm text-accent-300">
-          <IconAlert className="h-4 w-4" />{needsAttention} row(s) need attention (flagged or unmapped) — they&apos;re highlighted below.
+          <IconAlert className="h-4 w-4" />{needsAttention} row(s) need attention (flagged, or a supply line with no material) — they&apos;re highlighted below.
         </p>
       )}
 
@@ -168,15 +186,15 @@ export function BoqReview({
               </label>
             </summary>
             <div className="overflow-x-auto border-t border-white/[0.06]">
-              <table className="table-base min-w-[860px]">
+              <table className="table-base min-w-[1020px]">
                 <thead>
-                  <tr><th>Use</th><th>Ref</th><th className="min-w-[20rem]">Item (as written)</th><th>Material</th><th>Stage</th><th>Qty</th><th>Unit</th><th className="text-right">Rate</th></tr>
+                  <tr><th>Use</th><th>Ref</th><th className="min-w-[20rem]">Item (as written)</th><th>Kind</th><th>Material</th><th>Stage</th><th>Qty</th><th>Unit</th><th className="text-right">Rate</th></tr>
                 </thead>
                 <tbody>
                   {groupRows.map((r) => {
                     const i = byId.get(r.id)!;
                     const s = state[i];
-                    const risky = (r.flags?.length ?? 0) > 0 || !s.material_id;
+                    const risky = rowRisky(r);
                     return (
                       <tr key={r.id} className={risky ? "bg-accent-500/[0.04]" : ""}>
                         <td><input type="checkbox" checked={s.include} onChange={(e) => patch(i, { include: e.target.checked })}
@@ -196,7 +214,19 @@ export function BoqReview({
                           </div>
                         </td>
                         <td>
-                          <select className={`select py-1.5 ${s.material_id ? "" : "border-accent-500/50"}`} value={s.material_id}
+                          <select className="select py-1.5" value={s.kind} onChange={(e) => patch(i, { kind: e.target.value })}>
+                            {KINDS.map((k) => <option key={k} value={k}>{k.replace("_", " ")}</option>)}
+                          </select>
+                          {s.kind === "composite" && (
+                            <select className={`select mt-1 py-1.5 ${s.assembly_id ? "" : "border-blue-400/40"}`} value={s.assembly_id}
+                              onChange={(e) => patch(i, { assembly_id: e.target.value })}>
+                              <option value="">— assembly —</option>
+                              {assemblies.map((a) => <option key={a.id} value={a.id}>{a.name} (/{a.unit})</option>)}
+                            </select>
+                          )}
+                        </td>
+                        <td>
+                          <select className={`select py-1.5 ${s.material_id || s.kind !== "material_supply" ? "" : "border-accent-500/50"}`} value={s.material_id}
                             onChange={(e) => patch(i, { material_id: e.target.value })}>
                             <option value="">{r.material_guess ? `— map (AI: ${r.material_guess}) —` : "— map —"}</option>
                             {materials.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
@@ -223,10 +253,10 @@ export function BoqReview({
 
       <div className="flex flex-wrap items-center gap-3">
         <button className="btn btn-primary" onClick={confirm} disabled={busy || mappedCount === 0}>
-          <IconCheck className="h-4 w-4" />{busy ? "Confirming…" : `Confirm ${mappedCount} row${mappedCount === 1 ? "" : "s"} into recipe`}
+          <IconCheck className="h-4 w-4" />{busy ? "Confirming…" : `Confirm ${mappedCount} row${mappedCount === 1 ? "" : "s"} as work items`}
         </button>
         <button className="btn btn-ghost" onClick={proposePrices} disabled={busy}>Propose prices from this bill</button>
-        <span className="text-xs text-[#8b95a7]">Only ticked rows with a material are written. Same material + stage sums.</span>
+        <span className="text-xs text-[#8b95a7]">Ticked rows become work items; only material-supply rows need a material (those also feed the classic recipe).</span>
         {msg && (
           <span className={`flex items-center gap-1.5 text-sm ${msg.ok ? "text-emerald-300" : "text-red-300"}`}>
             {msg.ok ? <IconCheck className="h-4 w-4" /> : <IconAlert className="h-4 w-4" />}{msg.t}

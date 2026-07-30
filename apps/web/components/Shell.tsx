@@ -21,6 +21,7 @@ const NAV: NavItem[] = [
   { href: "/expenses", label: "Expenses", icon: IconReceipt, group: "Site" },
   { href: "/prices", label: "Price list", icon: IconTag, group: "Site" },
   { href: "/recipes", label: "Recipes", icon: IconLayers, group: "Design" },
+  { href: "/assemblies", label: "Assemblies", icon: IconBox, group: "Design" },
   { href: "/boq-import", label: "BOQ import", icon: IconUpload, group: "Design" },
   { href: "/ask", label: "Ask", icon: IconChat, group: "Intelligence" },
   { href: "/ai", label: "AI proposals", icon: IconSpark, group: "Intelligence" },
