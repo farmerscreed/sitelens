@@ -5,7 +5,31 @@ session. Newest status at the top of each section._
 
 ---
 
-## ▶ NEXT SESSION — implement the BOQ true-cost model (design v2)
+## ▶ NEXT SESSION — finish Phase 2 web + deploy the BOQ build to cloud
+
+**Phases 0–2 of `docs/BOQ_TRUE_COST_DESIGN.md` v2 are BUILT and verified locally**
+(33 migrations, 20 suites green incl. the real NPC Xora Bay gate: 130 items, 0 junk,
+12/12 dittos, 0% reconciliation variance, 43 unpriced items surfaced). Commits
+e20fc08 (Phase 0 hotfix), a43064f (Phase 1 extraction v2), 3cd0cce (Phase 2 true-cost).
+
+**Blocked on founder / next session:**
+1. **Cloud deploy** (permission-gated here): `supabase db push` (or MCP apply) of the
+   3 new migrations to `gwzpqnnwflwkcrowolgx` — Phase 0 fixes two LIVE data-corruption
+   bugs, so this comes first; then redeploy the `boq-extract-pdf` edge function
+   (`supabase functions deploy boq-extract-pdf`) and `git push` for Vercel.
+2. **Remaining Phase 2 web** (DB layer done, UI thin): assembly library page
+   (`fn_upsert_assembly` + ratio→components calculator w/ grade↔ratio sanity table),
+   review split-row/assembly-pick with derived-materials preview, recipe page
+   work-items view (`work_item_cost` — live build-up vs `boq_rate` variance,
+   3-number scope header), take-off panel (`type_material_takeoff`),
+   conversions editor (`fn_set_material_conversion`, seed standards).
+3. First REAL AI run: upload the NPC bill on cloud (needs `DEV_AI_MODE=false` +
+   `OPENROUTER_API_KEY` secrets already set) and eyeball the enrichment quality.
+4. Phase 3 (work-done + earned value + dated labour rates) awaits go-ahead.
+
+---
+
+## ▶ superseded — implement the BOQ true-cost model (design v2)
 
 **Read `docs/BOQ_TRUE_COST_DESIGN.md` (v2, 2026-07-30) first — it is the authoritative
 design + implementation plan, awaiting founder approval.** v2 came out of a line-by-line
