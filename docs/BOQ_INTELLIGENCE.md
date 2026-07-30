@@ -58,6 +58,13 @@ confirm); this makes it smart, correct, and easy.
   cost computed live (Rule 4). Every extracted value keeps source + confidence (Rule 2).
 
 ## Done already (foundation)
+- **Spreadsheets parse in the BROWSER** (2026-07-30): the `boq-parse` edge function was
+  546-ing (worker terminated — SheetJS memory limit) on real `.xlsx` files (small CSVs
+  passed; binary Excel OOM'd the edge runtime). Now Excel/CSV are read client-side with
+  SheetJS (no memory limit / cold start) and staged via direct RPC calls
+  (`fn_create_boq_import`/`fn_stage_boq_rows`/`fn_remember_column_mapping`, all granted to
+  authenticated). PDF/photo still go server-side (AI vision needs the key). Remembered
+  column mapping auto-applies per header layout.
 - **Multi-format upload with auto-detection** (2026-07-30): Excel/CSV (parsed, no AI),
   PDF (AI vision via the `file` content type + OpenRouter native pdf engine), and
   **photos/scans jpg/png/webp** (AI vision via image_url). The wizard detects the format

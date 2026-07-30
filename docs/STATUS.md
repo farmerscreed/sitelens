@@ -24,6 +24,9 @@ session. Newest status at the top of each section._
   **any format with auto-detection** — Excel/CSV (parsed), PDF and **photos/scans**
   (AI vision). Fixed the PDF upload "non-2xx" (PDFs were sent as an image; now via the
   `file` content type). Errors now show the real message. See docs/BOQ_INTELLIGENCE.md.
+  **Spreadsheets now parse in the browser** (fixes the `boq-parse` 546 worker crash —
+  SheetJS OOM'd the edge runtime on real .xlsx) and stage via direct RPCs; added `xlsx`
+  to the web app (dynamic import).
 - **Open / next:** the deep **BOQ intelligence** work (AI validates + auto-assigns
   stages, populates the price list from BOQ rates, resolves conflicting values) is
   specced in **docs/BOQ_INTELLIGENCE.md** — not yet built.
