@@ -31,6 +31,10 @@ export async function extractBoqFromPdf(pdfBase64: string): Promise<BoqRow[]> {
     headers: { Authorization: `Bearer ${key}`, "content-type": "application/json" },
     body: JSON.stringify({
       model,
+      // PDFs go through the `file` content type (NOT image_url — Claude's image input
+      // only accepts jpeg/png/gif/webp). OpenRouter's file-parser routes the document;
+      // "native" lets the model read the PDF (tables/layout) directly.
+      plugins: [{ id: "file-parser", pdf: { engine: "native" } }],
       messages: [
         {
           role: "system",
@@ -42,8 +46,8 @@ export async function extractBoqFromPdf(pdfBase64: string): Promise<BoqRow[]> {
         {
           role: "user",
           content: [
-            { type: "text", text: "Extract every BOQ line item from this document." },
-            { type: "image_url", image_url: { url: `data:application/pdf;base64,${pdfBase64}` } },
+            { type: "text", text: "Extract every BOQ line item from this document. Return only the JSON array." },
+            { type: "file", file: { filename: "boq.pdf", file_data: `data:application/pdf;base64,${pdfBase64}` } },
           ],
         },
       ],
@@ -57,6 +61,33 @@ export async function extractBoqFromPdf(pdfBase64: string): Promise<BoqRow[]> {
 }
 
 const dev = () => (Deno.env.get("DEV_AI_MODE") ?? "true") !== "false";
+
+// BOQ from a photo/scan (jpg/png/webp). Images use image_url with their real media type
+// (Claude accepts jpeg/png/gif/webp) — unlike PDFs, which go through the `file` type.
+export async function extractBoqFromImage(imageBase64: string, mediaType: string): Promise<BoqRow[]> {
+  const devMode = (Deno.env.get("DEV_AI_MODE") ?? "true") !== "false";
+  const key = Deno.env.get("OPENROUTER_API_KEY");
+  if (devMode || !key) return DEV_ROWS;
+  const model = Deno.env.get("AI_BOQ_MODEL") ?? "anthropic/claude-sonnet-5";
+  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${key}`, "content-type": "application/json" },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: "system", content: "Extract the Bill of Quantities as strict JSON: an array of {raw_text, parsed_qty, parsed_unit, parsed_rate, confidence}. raw_text is the item name exactly as written. Numbers as strings. No prose." },
+        { role: "user", content: [
+          { type: "text", text: "Extract every BOQ line item from this image. Return only the JSON array." },
+          { type: "image_url", image_url: { url: `data:${mediaType};base64,${imageBase64}` } },
+        ] },
+      ],
+    }),
+  });
+  if (!res.ok) throw new Error(`OpenRouter ${res.status}: ${await res.text()}`);
+  const data = await res.json();
+  const text: string = data.choices?.[0]?.message?.content ?? "[]";
+  return JSON.parse(text.slice(text.indexOf("["), text.lastIndexOf("]") + 1)) as BoqRow[];
+}
 
 // AI-2: receipt / waybill OCR → structured fields.
 export type Receipt = { amount: number; date: string; payee: string; confidence: number };

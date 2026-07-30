@@ -4,7 +4,7 @@
 // runs with no paid key.
 // Deno runtime; code-complete (edge-runtime not managed on this dev box).
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { extractBoqFromPdf } from "../_shared/ai-router.ts";
+import { extractBoqFromPdf, extractBoqFromImage } from "../_shared/ai-router.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -14,7 +14,7 @@ const cors = {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   try {
-    const { fileBase64, orgId, buildingTypeId, sourceMediaId } = await req.json();
+    const { fileBase64, orgId, buildingTypeId, sourceMediaId, mime } = await req.json();
     const authHeader = req.headers.get("Authorization") ?? "";
     const supa = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -22,11 +22,14 @@ Deno.serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } },
     );
 
-    const rows = await extractBoqFromPdf(fileBase64);
+    // PDF → file content type; image (photo/scan) → image_url. Auto-routed by mime.
+    const isImage = typeof mime === "string" && mime.startsWith("image/");
+    const rows = isImage ? await extractBoqFromImage(fileBase64, mime) : await extractBoqFromPdf(fileBase64);
+    const format = (isImage ? (mime.split("/")[1] || "image") : "pdf").slice(0, 10);
 
     const { data: importId, error: e1 } = await supa.rpc("fn_create_boq_import", {
       p_org: orgId, p_building_type: buildingTypeId ?? null,
-      p_format: "pdf", p_source_media: sourceMediaId ?? null,
+      p_format: format, p_source_media: sourceMediaId ?? null,
     });
     if (e1) return json({ error: e1.message }, 400);
 
