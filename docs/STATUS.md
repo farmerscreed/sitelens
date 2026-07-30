@@ -5,7 +5,7 @@ session. Newest status at the top of each section._
 
 ---
 
-## ▶ NEXT SESSION — finish Phase 2 web + deploy the BOQ build to cloud
+## ▶ NEXT SESSION — BOQ build COMPLETE (Phases 0–3 deployed 2026-07-30). All migrations (34) + edge fn + web live on cloud; 22 suites green. Remaining: founder smoke-tests the real-AI upload + assemblies/EV pages on sitelens-eosin.vercel.app. Superseded plan below:
 
 **Phases 0–2 of `docs/BOQ_TRUE_COST_DESIGN.md` v2 are BUILT and verified locally**
 (33 migrations, 20 suites green incl. the real NPC Xora Bay gate: 130 items, 0 junk,
