@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { IconCheck, IconAlert } from "@/components/icons";
+import { AssemblyProposals, type ProposalAttachment } from "@/components/AssemblyProposals";
 
 type Row = {
   id: string; raw_text: string; resolved_text: string | null;
@@ -17,7 +18,7 @@ type Row = {
 };
 type Material = { id: string; name: string; unit: string };
 type Stage = { id: string; name: string; sequence: number };
-type Assembly = { id: string; name: string; unit: string };
+type Assembly = { id: string; name: string; unit: string; ratio?: string | null };
 type Reconciliation = {
   extracted_total: number; stated_total: number | null; variance_pct: number | null;
   sections: { element: string; extracted: number; stated: number | null; ok: boolean }[];
@@ -72,11 +73,12 @@ function buildMatCandidates(items: Row[]): MatDraft[] {
 // stays a proposal until fn_confirm_boq_import_v2 — the only write path into the
 // recipe's work items. Composite rows can point at an assembly for live costing.
 export function BoqReview({
-  importId, format, status, reconciliation, pricedTotal, unpricedCount, rows, materials, stages, assemblies,
+  importId, orgId, format, status, reconciliation, pricedTotal, unpricedCount, rows, materials, stages, assemblies, prices,
 }: {
-  importId: string; format: string; status: string;
+  importId: string; orgId: string; format: string; status: string;
   reconciliation: Reconciliation; pricedTotal: number | null; unpricedCount: number | null;
   rows: Row[]; materials: Material[]; stages: Stage[]; assemblies: Assembly[];
+  prices: Record<string, number>;
 }) {
   const router = useRouter();
   const supabase = createClient();
@@ -107,6 +109,30 @@ export function BoqReview({
   const patchMat = (i: number, p: Partial<MatDraft>) =>
     setMatDrafts((s) => s.map((d, j) => (j === i ? { ...d, ...p } : d)));
   const matSelected = matDrafts.filter((d) => d.on && d.name.trim() && d.unit.trim());
+
+  // Assembly proposals (third bootstrap step): composite-suggested rows. Confirmed
+  // proposals are APPLIED here at confirm time — the new/matched assembly is
+  // pre-selected on every row of the group (kind composite + assembly_id).
+  const compositeCandidates = useMemo(
+    () => items.filter((r) => r.suggested_kind === "composite").map((r) => ({
+      id: r.id, description: r.resolved_text ?? r.raw_text,
+      mix_ratio: r.mix_ratio, boq_rate: r.parsed_rate,
+      unit: r.unit_normalized ?? r.parsed_unit,
+    })),
+    [items],
+  );
+  const [extraAssemblies, setExtraAssemblies] = useState<Assembly[]>([]);
+  const allAssemblies = useMemo(
+    () => [...assemblies, ...extraAssemblies.filter((e) => !assemblies.some((a) => a.id === e.id))],
+    [assemblies, extraAssemblies],
+  );
+  function applyAssemblyAttachments(atts: ProposalAttachment[]) {
+    setExtraAssemblies((s) => [...s, ...atts.map((a) => ({ id: a.assemblyId, name: a.assemblyName, unit: a.assemblyUnit }))]);
+    setState((s) => s.map((r) => {
+      const att = atts.find((a) => a.itemIds.includes(r.row_id));
+      return att ? { ...r, kind: "composite", assembly_id: att.assemblyId } : r;
+    }));
+  }
 
   async function bootstrapStages() {
     setBusy(true); setBootMsg(null);
@@ -239,11 +265,11 @@ export function BoqReview({
       {/* Set up from this bill — the bill as the young org's setup tool. Only shown
           while there is something to bootstrap; both writes are SECURITY DEFINER
           RPCs and everything on screen is editable before confirming (Rule 3). */}
-      {(stageBootstrapNeeded || matDrafts.length > 0) && (
+      {(stageBootstrapNeeded || matDrafts.length > 0 || compositeCandidates.length > 0) && (
         <section className="card">
           <h2 className="text-sm font-semibold text-white">Set up from this bill</h2>
           <p className="mt-1 text-xs text-[#8b95a7]">
-            Missing stages or catalog materials? Create them straight from the bill — check and edit everything below first.
+            Missing stages, catalog materials or assemblies? Create them straight from the bill — check and edit everything below first.
           </p>
           {bootMsg && (
             <div className={`mt-3 flex items-center gap-2 rounded-xl border px-3.5 py-2.5 text-sm ${
@@ -311,6 +337,18 @@ export function BoqReview({
               </div>
             </div>
           )}
+
+          {compositeCandidates.length > 0 && (
+            <AssemblyProposals
+              orgId={orgId}
+              mode="review"
+              candidates={compositeCandidates}
+              materials={materials}
+              assemblies={assemblies.map((a) => ({ id: a.id, name: a.name, unit: a.unit, ratio: a.ratio ?? null }))}
+              prices={prices}
+              onApplied={applyAssemblyAttachments}
+            />
+          )}
         </section>
       )}
 
@@ -370,7 +408,7 @@ export function BoqReview({
                             <select className={`select mt-1 py-1.5 ${s.assembly_id ? "" : "border-blue-400/40"}`} value={s.assembly_id}
                               onChange={(e) => patch(i, { assembly_id: e.target.value })}>
                               <option value="">— assembly —</option>
-                              {assemblies.map((a) => <option key={a.id} value={a.id}>{a.name} (/{a.unit})</option>)}
+                              {allAssemblies.map((a) => <option key={a.id} value={a.id}>{a.name} (/{a.unit})</option>)}
                             </select>
                           )}
                         </td>
