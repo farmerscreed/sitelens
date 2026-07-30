@@ -5,6 +5,27 @@ session. Newest status at the top of each section._
 
 ---
 
+## ▶ NEXT SESSION — implement the BOQ true-cost model
+
+**Read `docs/BOQ_TRUE_COST_DESIGN.md` first — it is the approved design and the task.**
+The founder reviewed a real QS BOQ and signed off on a **hybrid true-cost model**: import
+BOQ **work-items** faithfully, expand composites (concrete/blockwork) into **raw materials
+via mixes**, track **labour** too — so a building's true cost (materials + labour) is known
+and monitored start→finish.
+
+Locked decisions (see the doc §1): **Hybrid** modelling · do **both** cost & stock **plus
+work-done tracking** · **AI reads mix ratios from the BOQ** (editable-standard fallback) ·
+**design-doc-first** (this deliverable — no schema written yet).
+
+Build in phases (doc §7): **Phase 1** smart AI extraction (segment/classify/stage/
+map-material/read-mix + work-items & rates → review → confirm) → **Phase 2** mixes &
+material take-off + dated labour rates → **Phase 3** work-done & true-cost (earned value vs
+actual). **5 open questions in doc §6 need founder answers before/early in the build.**
+Respect all four Golden Rules (doc §8). The BOQ import already works today for plain
+extraction (Excel client-side, PDF/photo via AI) — this makes it *intelligent*.
+
+---
+
 ## 2026-07-30 — App-wide UX polish, price edit/delete, CORS fix, Ask formatting
 
 - **App-wide UI/UX pass (mobile-first):** every form on the design system

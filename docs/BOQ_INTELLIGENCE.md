@@ -1,5 +1,10 @@
 # BOQ_INTELLIGENCE — the "powerful brain" behind BOQ import (planned)
 
+> **➡️ The full approved-direction design is now in `docs/BOQ_TRUE_COST_DESIGN.md`.**
+> Read that first — it supersedes the "Proposed design" section below with the true-cost
+> model (work-items + mixes + labour) the founder signed off on. This file keeps the
+> extraction/UX foundation notes and what's already shipped.
+
 BOQ population is the keystone of SiteLens: it turns a builder's bill of quantities into a
 reusable, correctly-staged recipe that everything else (cost, materials, planning, portal)
 computes from. This doc specs the intelligence layer the founder asked for. **Status:
