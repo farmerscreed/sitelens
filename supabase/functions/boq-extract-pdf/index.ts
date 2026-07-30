@@ -19,8 +19,9 @@ const cors = {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+  let failReport: ((msg: string) => Promise<void>) | null = null;
   try {
-    const { orgId, buildingTypeId, gridRows, fileBase64, mime, sourceMediaId, format } = await req.json();
+    const { orgId, buildingTypeId, gridRows, fileBase64, mime, sourceMediaId, format, importId: preId } = await req.json();
     const authHeader = req.headers.get("Authorization") ?? "";
     const supa = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -39,15 +40,28 @@ Deno.serve(async (req) => {
     const modelId = (Deno.env.get("DEV_AI_MODE") ?? "true") !== "false"
       ? "dev" : (Deno.env.get("AI_BOQ_MODEL") ?? "anthropic/claude-sonnet-5");
 
+    // Live progress: when the client pre-created the import, report each phase
+    // onto the row so the wizard can show REAL progress (and survive a dropped
+    // connection). Best-effort — progress must never break the import.
+    const report = (p: Record<string, unknown>) => {
+      if (!preId) return Promise.resolve();
+      return supa.rpc("fn_boq_import_progress", { p_import: preId, p_progress: p }).then(() => {}, () => {});
+    };
+    failReport = (msg) => report({ step: "error", message: msg });
+
     let rows: BoqV2Row[]; let fmt: string;
     if (Array.isArray(gridRows)) {
       // Spreadsheet lane: deterministic grammar first, AI enrichment on top.
+      await report({ step: "decoding" });
       const annotated = annotateGrid(gridRows).rows as BoqV2Row[];
       devSuggestKinds(annotated);                       // baseline kinds (dev + fallback)
-      rows = await enrichBoqRows(annotated, stages);    // no-op in DEV_AI_MODE
+      await report({ step: "enriching", done: 0, total: 0 });
+      rows = await enrichBoqRows(annotated, stages,     // no-op in DEV_AI_MODE
+        (done, total) => { report({ step: "enriching", done, total }); });
       fmt = (format === "csv" ? "csv" : "xlsx");
     } else if (typeof fileBase64 === "string") {
       // PDF / photo lane: the model extracts against the same grammar.
+      await report({ step: "reading_file" });
       const isImage = typeof mime === "string" && mime.startsWith("image/");
       rows = await extractBoqV2FromFile(fileBase64, mime ?? "application/pdf", stages);
       for (const r of rows) {                           // pass-3 backstops
@@ -63,14 +77,20 @@ Deno.serve(async (req) => {
     }
 
     // Pass 3: arithmetic checks + reconciliation vs the bill's own totals (§5).
+    await report({ step: "validating" });
     const out = validateAndReconcile(rows);
 
-    const { data: importId, error: e1 } = await supa.rpc("fn_create_boq_import", {
-      p_org: orgId, p_building_type: buildingTypeId ?? null,
-      p_format: fmt, p_source_media: sourceMediaId ?? null,
-    });
-    if (e1) return json({ error: e1.message }, 400);
+    let importId = preId as string | undefined;
+    if (!importId) {
+      const { data, error: e1 } = await supa.rpc("fn_create_boq_import", {
+        p_org: orgId, p_building_type: buildingTypeId ?? null,
+        p_format: fmt, p_source_media: sourceMediaId ?? null,
+      });
+      if (e1) return json({ error: e1.message }, 400);
+      importId = data;
+    }
 
+    await report({ step: "staging", rows: out.rows.length });
     const { data: staged, error: e2 } = await supa.rpc("fn_stage_boq_rows_v2", {
       p_import: importId,
       p_rows: toStagePayload(out.rows, modelId),
@@ -86,6 +106,7 @@ Deno.serve(async (req) => {
       priced_total: out.priced_total,
     });
   } catch (e) {
+    await failReport?.(String(e));  // polled wizard sees the failure too
     return json({ error: String(e) }, 400);
   }
 });

@@ -116,7 +116,7 @@ const sliceJson = (t: string, open: string, close: string) =>
 // material / mix — it can never invent rows (row_no must exist). Rule 3: all output
 // stays a proposal.
 export async function enrichBoqRows(
-  rows: BoqV2Row[], stages: StageRef[],
+  rows: BoqV2Row[], stages: StageRef[], onChunkDone?: (done: number, total: number) => void,
 ): Promise<BoqV2Row[]> {
   const key = Deno.env.get("OPENROUTER_API_KEY");
   if (dev() || !key) return rows; // dev brain already ran in boq_core
@@ -167,7 +167,10 @@ export async function enrichBoqRows(
       if (o.field_confidence) r.field_confidence = o.field_confidence as Record<string, number>;
     }
   };
-  await Promise.allSettled([...byElement.entries()].map(enrichChunk));
+  let done = 0;
+  const total = byElement.size;
+  await Promise.allSettled([...byElement.entries()].map((e) =>
+    enrichChunk(e).finally(() => { done++; onChunkDone?.(done, total); })));
   return rows;
 }
 

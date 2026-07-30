@@ -337,6 +337,7 @@ export function devSuggestKinds(rows) {
 // Serialize staged rows for fn_stage_boq_rows_v2 (numbers as strings, per RPC).
 export function toStagePayload(rows, modelId) {
   return rows.map((r) => ({
+    row_no: r.row_no != null ? String(r.row_no) : "",
     raw_text: r.raw_text,
     parsed_qty: r.qty != null ? String(r.qty) : "",
     parsed_unit: r.unit ?? "",
