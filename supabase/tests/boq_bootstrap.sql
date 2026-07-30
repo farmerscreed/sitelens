@@ -10,7 +10,7 @@ DECLARE
   org_a uuid := 'a0000000-0000-0000-0000-0000000000aa';
   user_a uuid := 'a1111111-1111-1111-1111-111111111111';
   typ uuid; stg_existing uuid; imp uuid; res jsonb;
-  r_sand uuid; r_conc uuid; r_roof uuid; n int; q numeric; u uuid; fails int := 0;
+  r_sand uuid; r_conc uuid; r_roof uuid; r_long uuid; n int; q numeric; u uuid; fails int := 0;
 BEGIN
   PERFORM set_config('request.jwt.claims', jsonb_build_object('sub', user_a)::text, true);
 
@@ -31,10 +31,16 @@ BEGIN
     jsonb_build_object('raw_text','Roofing Sheet','parsed_qty','336','parsed_unit','Sq.m',
       'parsed_rate','12500','row_kind','item','row_no','30',
       'suggested_kind','material_supply','material_guess','Roofing sheet 0.55mm',
-      'section_path', jsonb_build_array('ELEMENT 4 - ROOF'))));
+      'section_path', jsonb_build_array('ELEMENT 4 - ROOF')),
+    -- Real bills carry >200-char descriptions; the alias memory must hold them.
+    jsonb_build_object('raw_text', rpad('High yield high bond reinforcement bar to BS 4449 and 4461 cut and bend to sizes including tying wire and distance spacer in any class of concrete, supplied in twelve metre lengths ', 260, 'x'),
+      'parsed_qty','5','parsed_unit','Tons','parsed_rate','1710000','row_kind','item','row_no','40',
+      'suggested_kind','material_supply','material_guess','Reinforcement bar Y12',
+      'section_path', jsonb_build_array('ELEMENT 1 — SUBSTRUCTURE (ALL PROVISIONAL)'))));
   SELECT id INTO r_sand FROM boq_import_rows WHERE import_id = imp AND raw_text LIKE '1630mm%';
   SELECT id INTO r_conc FROM boq_import_rows WHERE import_id = imp AND raw_text LIKE 'Concrete%';
   SELECT id INTO r_roof FROM boq_import_rows WHERE import_id = imp AND raw_text LIKE 'Roofing%';
+  SELECT id INTO r_long FROM boq_import_rows WHERE import_id = imp AND raw_text LIKE 'High yield%';
 
   -- ── stages ──
   res := fn_bootstrap_stages_from_import(imp);
@@ -54,8 +60,9 @@ BEGIN
   -- ── materials (+ seeded price for the supply rows) ──
   res := fn_bootstrap_materials_from_import(imp, jsonb_build_array(
     jsonb_build_object('name','Sharp sand','unit','m3','price','11100','row_ids', jsonb_build_array(r_sand)),
-    jsonb_build_object('name','Roofing sheet 0.55mm','unit','m2','price','12500','row_ids', jsonb_build_array(r_roof))));
-  IF (res->>'created')::int <> 2 OR (res->>'priced')::int <> 2 THEN
+    jsonb_build_object('name','Roofing sheet 0.55mm','unit','m2','price','12500','row_ids', jsonb_build_array(r_roof)),
+    jsonb_build_object('name','Reinforcement bar Y12','unit','t','price','1710000','row_ids', jsonb_build_array(r_long))));
+  IF (res->>'created')::int <> 3 OR (res->>'priced')::int <> 3 THEN
     RAISE WARNING 'bootstrap materials res=%', res; fails:=fails+1; END IF;
   SELECT id INTO u FROM materials_catalog WHERE org_id = org_a AND lower(name) = 'sharp sand';
   IF u IS NULL THEN RAISE WARNING 'material not created'; fails:=fails+1; END IF;
@@ -65,6 +72,8 @@ BEGIN
   IF u IS NULL THEN RAISE WARNING 'row not auto-mapped after bootstrap'; fails:=fails+1; END IF;
   SELECT count(*) INTO n FROM material_aliases WHERE org_id = org_a AND lower(alias_text) LIKE '1630mm%';
   IF n <> 1 THEN RAISE WARNING 'alias not remembered'; fails:=fails+1; END IF;
+  SELECT count(*) INTO n FROM material_aliases WHERE org_id = org_a AND length(alias_text) > 200;
+  IF n <> 1 THEN RAISE WARNING 'long-description alias not stored (varchar cap regression)'; fails:=fails+1; END IF;
 
   -- §7 guardrail: seeding a price from a COMPOSITE row must be refused.
   BEGIN
