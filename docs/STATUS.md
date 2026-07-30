@@ -20,7 +20,10 @@ session. Newest status at the top of each section._
   users send a JWT; OPTIONS still passes). See docs/CLOUD_MIGRATION.md.
 - **Ask** answers now render as markdown (`components/Markdown.tsx`) and are prompted to
   be structured + actionable (direct answer → figures → **Suggested action**).
-- **BOQ wizard** now guides you to create a recipe first when none exists.
+- **BOQ wizard** now guides you to create a recipe first when none exists, and imports
+  **any format with auto-detection** — Excel/CSV (parsed), PDF and **photos/scans**
+  (AI vision). Fixed the PDF upload "non-2xx" (PDFs were sent as an image; now via the
+  `file` content type). Errors now show the real message. See docs/BOQ_INTELLIGENCE.md.
 - **Open / next:** the deep **BOQ intelligence** work (AI validates + auto-assigns
   stages, populates the price list from BOQ rates, resolves conflicting values) is
   specced in **docs/BOQ_INTELLIGENCE.md** — not yet built.

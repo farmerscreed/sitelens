@@ -58,6 +58,17 @@ confirm); this makes it smart, correct, and easy.
   cost computed live (Rule 4). Every extracted value keeps source + confidence (Rule 2).
 
 ## Done already (foundation)
-- Upload → parse (Excel/CSV, no AI) or extract (PDF, vision model) → stage rows → review →
-  confirm into recipe. Column-mapping memory per org. CORS fixed so uploads work.
+- **Multi-format upload with auto-detection** (2026-07-30): Excel/CSV (parsed, no AI),
+  PDF (AI vision via the `file` content type + OpenRouter native pdf engine), and
+  **photos/scans jpg/png/webp** (AI vision via image_url). The wizard detects the format
+  from the file and shows a badge; the edge fn routes by mime. → stage rows → review →
+  confirm into recipe. Column-mapping memory per org.
+- **Fixed** the PDF "non-2xx": PDFs were sent as `image_url` with media_type
+  application/pdf, which Claude rejects (images must be jpeg/png/gif/webp) — now sent as a
+  `file` part. CORS fixed earlier so uploads reach the function. Wizard now surfaces the
+  edge function's real error body instead of a generic "non-2xx".
 - Wizard guides to create a recipe first when none exists.
+
+## Still to build (the "brain" — see Proposed design above)
+Auto-stage assignment, price-list population from BOQ rate columns with a human
+conflict-chooser, risk-ranked correctness gates, material-alias memory.
