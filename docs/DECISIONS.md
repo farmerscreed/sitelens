@@ -316,23 +316,51 @@ logged here so the founder can review drift. Newest at the bottom.
     component (no external lib; CSP-safe) and are prompted for a direct-answer → figures →
     suggested-action shape so output is readable and actionable.
 
-## 2026-07-30 — BOQ true-cost build (Phases 0–2)
+## 2026-07-30 — BOQ true-cost build (Phases 0–3 + bootstrap)
 
-- **#26 · Take-off is computed, never materialized.** Assembly expansion to raw
+43. ** Take-off is computed, never materialized.** Assembly expansion to raw
   materials lives in views (`type_material_takeoff`, `work_item_cost` via
   `fn_work_item_unit_cost`) rather than being written into `type_boq_items` —
   avoids a second writer fighting the confirm path and honours Rule 4 (cost is
   always live). Only direct `material_supply` work items also feed
   `type_boq_items`, keeping the existing cost/usage/reorder engines working.
-- **#27 · materials_catalog.id got a DEFAULT.** `fn_upsert_material` failed for
+44. ** materials_catalog.id got a DEFAULT.** `fn_upsert_material` failed for
   any NEW material (id NOT NULL, no default; seed's explicit ids hid it — latent
   since M5, live in cloud). Added `DEFAULT gen_random_uuid()` in
   `truecost_core`, same as sibling tables. PRD's client-generated-UUIDv7 rule is
   about idempotency of mutation tables; catalog upserts are keyed on
   (org, lower(name)), so a server default is safe.
-- **#28 · fn_confirm_boq_import (v1) now sums same-(stage,material) rows and the
+45. ** fn_confirm_boq_import (v1) now sums same-(stage,material) rows and the
   recipe unique index is NULLS NOT DISTINCT** — Phase 0 hotfix; v1 semantics
   otherwise unchanged (later import replaces).
-- **#29 · Unpriced-item rate proposals are the live build-up itself** (attach a
+46. ** Unpriced-item rate proposals are the live build-up itself** (attach a
   material/assembly → `work_item_cost` prices it); no separate proposal fn in
   Phase 2. Design doc §6's "propose rates" is satisfied by the view + review UI.
+
+47. **Dated `labour_rates` shipped in Phase 3 (not deferred).** Design §3.5 allowed a
+    v1 simplification (static rate on the assembly); we shipped the dated ledger the
+    same day and `fn_work_item_unit_cost` prefers it over the assembly's static rate —
+    labour now re-costs live exactly like materials (Rule 4).
+48. **Work-done is per work item, cumulative, with a 150% guard.** Design §6.3 leaned
+    per-stage for v1; per-work-item cost the same effort and gives true earned value.
+    Entries are cumulative as-of snapshots (latest wins); `fn_log_work_done` rejects
+    qty_done > 150% of the designed quantity and is idempotent on idempotency_key.
+49. **The bill bootstraps the org (founder-approved).** `fn_bootstrap_stages_from_import`
+    fuzzy-maps the bill's elements onto stages the user already designed and only
+    APPENDS missing ones — a designed recipe is never restructured.
+    `fn_bootstrap_materials_from_import` creates catalog materials from AI guesses and
+    seeds prices immediately on that confirm (one explicit human decision, no second
+    accept screen) — but ONLY from `material_supply` rows; the §7 guardrail is enforced
+    server-side and raises on any attempt to seed from a composite/labour rate.
+50. **Extraction progress is server-truthful, not animated.** The wizard creates the
+    import row first; the edge function reports each phase into `boq_imports.progress`
+    (decoding / enriching n-of-m / validating / staging / error) and the wizard polls —
+    so progress survives dropped connections and never lies during a hang.
+51. **AI enrichment is parallel, time-boxed, and disposable.** Element chunks run
+    concurrently (Promise.allSettled) with per-fetch AbortSignal timeouts (45 s; PDF
+    lane 100 s). The first real upload proved ~15 sequential model calls exceed the
+    edge wall clock (worker killed, bodyless non-2xx). A failed/timed-out chunk
+    degrades to the deterministic rows — enrichment can never kill an import.
+52. **Edge deploys use `supabase functions deploy --use-api --project-ref …`.** The CLI
+    is logged in but `supabase link` needs the DB password interactively on this box;
+    `--project-ref` + API bundling needs neither Docker nor a link.

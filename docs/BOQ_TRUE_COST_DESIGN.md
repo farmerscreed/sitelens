@@ -1,6 +1,13 @@
 # BOQ → TRUE-COST MODEL — design v2 (authoritative; supersedes v1 and BOQ_INTELLIGENCE "Proposed design")
 
-**Status: DESIGN FOR APPROVAL. No schema or code written yet.** v2 is a full redesign
+**Status: IMPLEMENTED (2026-07-30) — Phases 0–3 built, verified (35 migrations,
+24 suites incl. the real NPC gate at 0% variance) and deployed to cloud, plus a
+founder-requested addition beyond this doc: setup-from-bill bootstrap (stages from
+elements, materials + seeded supply prices) and a server-truthful extraction progress
+stepper — see DECISIONS.md #43–52 and STATUS.md.** The design below is kept as
+written/approved; deviations are logged in DECISIONS (notably: dated labour rates
+shipped in Phase 3 rather than deferred, work-done is per work item not per stage,
+take-off is computed in views, never materialized). v2 was a full redesign
 after a line-by-line QS review of the founder's real bill
 (`docs/BOQ FOR NPC XORA BAY 2 BEDROOM STRETCH TERRACE 150526.xlsx`, ₦280m, 15 elements,
 1,601 rows) against the shipped pipeline. The review found the current Excel lane cannot

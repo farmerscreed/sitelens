@@ -11,7 +11,10 @@
 BOQ population is the keystone of SiteLens: it turns a builder's bill of quantities into a
 reusable, correctly-staged recipe that everything else (cost, materials, planning, portal)
 computes from. This doc specs the intelligence layer the founder asked for. **Status:
-specced, not yet built.** Today's flow already works (upload → extract/parse → review →
+BUILT (2026-07-30) — the goals below all shipped via BOQ_TRUE_COST_DESIGN Phases 0–3
+(auto-staging = stage suggestions + bootstrap-from-elements; price-list population =
+fn_propose_prices_from_import + bootstrap seeding, supply-rows-only guardrail;
+correctness gates = machine flags + reconciliation banner; alias memory extended).** Today's flow already works (upload → extract/parse → review →
 confirm); this makes it smart, correct, and easy.
 
 ## Goals (from founder feedback, 2026-07-30)

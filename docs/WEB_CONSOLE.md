@@ -147,3 +147,18 @@ across projects); buildings, stock, expenses, reports, portal links are per-proj
 - Prod smoke: unauthenticated `GET /board /materials /expenses /dashboard` → **307**
   (redirect to /login), never 500.
 - Login end-to-end: email biebele@gmail.com → code arrives → lands on the dark dashboard.
+
+## 2026-07-30 addendum — BOQ true-cost surfaces
+
+- **/assemblies** (new, sidebar "Design"): mix library — ratio calculator (grade
+  sanity table), waste factors, reusable formwork, unit-conversions editor.
+- **/boq-import**: readiness note (stages/materials counts, never a gate); upload
+  creates the import row first, then polls `boq_imports.status,progress` every 2 s
+  for a real stepper (decoding → AI reading n of m → arithmetic → staging; step
+  'error' surfaces the server message).
+- **/boq-import/[id]** review v2: reconciliation banner, element groups (ordered by
+  `row_no`), machine-flag chips, "Set up from this bill" panel (bootstrap stages /
+  materials+prices), kind + assembly selects; confirm → `fn_confirm_boq_import_v2`.
+- **/recipes/[id]**: "True cost (work items)" (3-number header, live build-up vs BOQ
+  variance) + "Material take-off". **/buildings/[id]**: "Earned value" + work-done
+  logging. **/ai**: price-proposal chooser (accept = set current price).

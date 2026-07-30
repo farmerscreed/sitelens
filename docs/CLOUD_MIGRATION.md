@@ -113,3 +113,20 @@ cloud-move time. Append as we go. Region target: managed Supabase, London
 - **Edge fns incl. `send-sms`** deployed; **phone auth + Termii send-sms hook enabled**.
 - **Repo:** github.com/farmerscreed/sitelens (private). Web deploy = import to Vercel with
   Root Directory `apps/web` + NEXT_PUBLIC_SUPABASE_URL / _ANON_KEY.
+
+## 2026-07-30 — BOQ true-cost build applied to cloud (Phases 0–3 + bootstrap)
+
+- **5 migrations applied to `gwzpqnnwflwkcrowolgx` via MCP `apply_migration`**
+  (cloud ledger names): `boq_confirm_fixes`, `boq_staging_v2`, `truecost_core`,
+  `workdone_ev`, `boq_bootstrap_progress`. Local tree = **35 migration files**;
+  the cloud ledger is shorter because the pre-cutover schema was pushed in bulk —
+  verify parity by schema (tables/fns), not by ledger count.
+- **`boq-extract-pdf` redeployed 3×** (extraction v2 → parallel-enrichment fix →
+  progress reporting). Deploy from this box:
+  `~/.local/bin/supabase functions deploy boq-extract-pdf --project-ref gwzpqnnwflwkcrowolgx --use-api`
+  (CLI is logged in; `link` would need the DB password — not required with
+  `--project-ref`). Ships `_shared/ai-router.ts` + `_shared/boq_core.mjs` with it.
+- Secrets in use: `DEV_AI_MODE=false`, `OPENROUTER_API_KEY` set, `AI_BOQ_MODEL`
+  unset (defaults to anthropic/claude-sonnet-5 via OpenRouter).
+- At any future cloud move: re-apply all 35 migration files in order (they are the
+  single source of truth), redeploy all 6 edge functions, re-set the secrets above.

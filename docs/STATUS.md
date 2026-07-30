@@ -5,27 +5,39 @@ session. Newest status at the top of each section._
 
 ---
 
-## ▶ NEXT SESSION — BOQ build COMPLETE (Phases 0–3 deployed 2026-07-30). All migrations (34) + edge fn + web live on cloud; 22 suites green. Bootstrap-from-bill + live progress shipped (a62c339/daa421b, migration 36 on cloud): wizard readiness note + real progress stepper (polls boq_imports.progress); review "Set up from this bill" panel — one-click stages-from-elements (fuzzy, append-only) + materials checklist w/ seeded supply prices (§7 guardrail server-enforced). Founder re-tests the upload flow. Superseded plan below:
+## 2026-07-30 (later) — BOQ TRUE-COST: Phases 0–3 + bootstrap BUILT & DEPLOYED
 
-**Phases 0–2 of `docs/BOQ_TRUE_COST_DESIGN.md` v2 are BUILT and verified locally**
-(33 migrations, 20 suites green incl. the real NPC Xora Bay gate: 130 items, 0 junk,
-12/12 dittos, 0% reconciliation variance, 43 unpriced items surfaced). Commits
-e20fc08 (Phase 0 hotfix), a43064f (Phase 1 extraction v2), 3cd0cce (Phase 2 true-cost).
+**The entire BOQ true-cost build is live** (design: `docs/BOQ_TRUE_COST_DESIGN.md`,
+now marked IMPLEMENTED; judgment calls: DECISIONS #43–52). **35 migrations, 24 test
+suites green** (`bash scripts/verify_all.sh`), cloud DB + edge fn + Vercel all updated.
+Commits e20fc08 → 512a3d7.
 
-**Blocked on founder / next session:**
-1. **Cloud deploy** (permission-gated here): `supabase db push` (or MCP apply) of the
-   3 new migrations to `gwzpqnnwflwkcrowolgx` — Phase 0 fixes two LIVE data-corruption
-   bugs, so this comes first; then redeploy the `boq-extract-pdf` edge function
-   (`supabase functions deploy boq-extract-pdf`) and `git push` for Vercel.
-2. **Remaining Phase 2 web** (DB layer done, UI thin): assembly library page
-   (`fn_upsert_assembly` + ratio→components calculator w/ grade↔ratio sanity table),
-   review split-row/assembly-pick with derived-materials preview, recipe page
-   work-items view (`work_item_cost` — live build-up vs `boq_rate` variance,
-   3-number scope header), take-off panel (`type_material_takeoff`),
-   conversions editor (`fn_set_material_conversion`, seed standards).
-3. First REAL AI run: upload the NPC bill on cloud (needs `DEV_AI_MODE=false` +
-   `OPENROUTER_API_KEY` secrets already set) and eyeball the enrichment quality.
-4. Phase 3 (work-done + earned value + dated labour rates) awaits go-ahead.
+- **Phase 0** — 2 live confirm bugs fixed (qty overwrite → SUM; NULL-stage dup →
+  NULLS NOT DISTINCT). Applied to cloud first.
+- **Phase 1** — extraction v2: deterministic QS-grammar core (`_shared/boq_core.mjs`)
+  + AI enrichment, one brain for Excel/CSV/PDF/photo; reconciliation vs the bill's own
+  totals; **real NPC gate: 130 items, 0 junk, 12/12 dittos, 0% variance vs
+  ₦289,075,717.35, 43 unpriced surfaced** (`node tests/boq_core_test.mjs`).
+- **Phase 2** — `type_work_items` (boq_rate reference-only), `assemblies` (+waste,
+  reusable formwork, alt block routes), `material_conversions`, live-cost fn + views
+  (`work_item_cost`, `type_material_takeoff`), price proposals w/ §7 guardrail
+  (supply rows only). Web: /assemblies (ratio calculator + conversions), review v2
+  confirm → work items w/ kind+assembly, recipe true-cost + take-off panels.
+- **Phase 3** — dated `labour_rates` (override assembly static in live cost),
+  `building_work_actuals` (cumulative, idempotent, 150% guard), `building_work_ev`;
+  web: earned-value section + LogWorkDoneForm on the building page.
+- **Bootstrap + progress (founder feedback round)** — wizard readiness note; import
+  row created first, edge fn reports phase progress → polled stepper (survives
+  dropped connections; errors surface); review "Set up from this bill" panel:
+  one-click stages-from-elements (fuzzy-map existing, append-only) + materials
+  checklist with seeded supply prices (server-enforced guardrail). Fixed the first
+  real-upload failure (sequential AI calls blew the edge wall clock → parallel +
+  time-boxed + degrade-to-deterministic).
+
+**Open:** founder re-tests the full flow on sitelens-eosin.vercel.app (upload → stepper
+→ bootstrap → confirm → recipe true-cost); tune AI enrichment prompts on feedback.
+Latent fix shipped en route: `materials_catalog.id` had no DEFAULT (new-material
+creation would 500) — DECISIONS #44.
 
 ---
 

@@ -17,3 +17,7 @@ npm-debug.log*
 *.swp
 .vscode/
 .idea/
+
+# Client documents never enter git (bills contain commercial data)
+docs/*.xlsx
+docs/.~lock*
