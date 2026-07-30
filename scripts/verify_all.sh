@@ -21,7 +21,7 @@ echo "→ $(ls supabase/migrations/*.sql | wc -l) migrations + seed applied"
 
 echo "═══ tests ═══"
 fail=0
-for t in rls_isolation a0_token_hook ac7_price_recost b_recipe ac5_boq_import boq_v2_staging truecost g_hardening m2_buildings_board ac8_feasibility ac1_offline_sync ac4_material_balance ac9_overrun ac11_expense_approval ac3_duplicate_photo m6_reorder_advice m6_inference ac13_portal m7_notify; do
+for t in rls_isolation a0_token_hook ac7_price_recost b_recipe ac5_boq_import boq_v2_staging truecost workdone_ev g_hardening m2_buildings_board ac8_feasibility ac1_offline_sync ac4_material_balance ac9_overrun ac11_expense_approval ac3_duplicate_photo m6_reorder_advice m6_inference ac13_portal m7_notify; do
   printf "  %-20s " "$t"
   if out=$($PSQL < "supabase/tests/$t.sql" 2>&1); then
     echo "$out" | grep -oE "(PASS[^.]*|ALL PASS)" | head -1
