@@ -6,7 +6,8 @@ import { WorkItemKindSelect } from "@/components/WorkItemKindSelect";
 import { AssemblyProposals } from "@/components/AssemblyProposals";
 
 type WorkRow = {
-  id: string; stage_id: string | null; element_name: string | null; boq_ref: string | null;
+  id: string; stage_id: string | null; element_name: string | null; section_name: string | null;
+  boq_ref: string | null;
   description: string; quantity: string | null; unit: string | null; kind: string;
   assembly_id: string | null; boq_rate: string | null; is_priced: boolean;
   unit_cost_live: string | null; cost_live: string | null; boq_amount: string | null;
@@ -41,7 +42,7 @@ export default async function RecipeDetail({ params }: { params: { id: string } 
     supabase.from("materials_catalog").select("id,name,unit").order("name"),
     supabase.rpc("fn_type_cost", { p_type: typeId }).single(),
     supabase.from("work_item_cost")
-      .select("id,stage_id,element_name,boq_ref,description,quantity,unit,kind,assembly_id,boq_rate,is_priced,unit_cost_live,cost_live,boq_amount,est_cost,est_source")
+      .select("id,stage_id,element_name,section_name,boq_ref,description,quantity,unit,kind,assembly_id,boq_rate,is_priced,unit_cost_live,cost_live,boq_amount,est_cost,est_source")
       .eq("building_type_id", typeId).order("element_name"),
     supabase.from("type_material_takeoff").select("material_id,qty_required").eq("building_type_id", typeId),
     supabase.from("assemblies").select("id,name,unit,ratio").order("name"),
@@ -93,6 +94,8 @@ export default async function RecipeDetail({ params }: { params: { id: string } 
     .map((r) => ({
       id: r.id, description: r.description, mix_ratio: null,
       boq_rate: Number(r.boq_rate), unit: r.unit,
+      // Element/section headings often carry the grade the line itself omits.
+      context: [r.element_name, r.section_name].filter(Boolean).join(" · ") || null,
     }));
 
   return (

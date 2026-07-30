@@ -10,72 +10,133 @@ export type ProposalCandidate = {
   mix_ratio: string | null;
   boq_rate: number | null;
   unit: string | null;
+  context?: string | null;    // section/element text — scanned for grade when the row itself is silent
 };
 export type ProposalAttachment = { assemblyId: string; assemblyName: string; assemblyUnit: string; itemIds: string[] };
 type Material = { id: string; name: string; unit: string };
 type ExistingAssembly = { id: string; name: string; unit: string; ratio: string | null };
 
 const BAG_LITRES = 34.5;
+const MORTAR_DRY = 1.3;
 const GRADE_RATIO: Record<string, string> = { "15": "1:3:6", "20": "1:2:4", "25": "1:1.5:3" };
 const RATIO_GRADE: Record<string, string> = { "1:3:6": "15", "1:2:4": "20", "1:1.5:3": "25" };
+// Standard mixes for mangled-ratio repair (concrete 3-part + mortar 2-part).
+const STANDARD_MIXES: number[][] = [[1, 1.5, 3], [1, 2, 4], [1, 3, 6], [1, 3], [1, 4], [1, 6]];
 const ngn = (n: number | null | undefined) =>
   n == null ? "—" : `₦${Number(n).toLocaleString("en-NG", { maximumFractionDigits: 0 })}`;
 
-function parseRatio(s: string | null | undefined): number[] | null {
+function parseRatioText(s: string | null | undefined): { parts: number[]; text: string } | null {
   if (!s) return null;
   const m = s.match(/(\d+(?:\.\d+)?)\s*:\s*(\d+(?:\.\d+)?)(?:\s*:\s*(\d+(?:\.\d+)?))?/);
   if (!m) return null;
   const parts = m[3] != null ? [Number(m[1]), Number(m[2]), Number(m[3])] : [Number(m[1]), Number(m[2])];
-  return parts.every((p) => Number.isFinite(p) && p > 0) ? parts : null;
+  return parts.every((p) => Number.isFinite(p) && p > 0) ? { parts, text: m[0].replace(/\s/g, "") } : null;
+}
+const parseRatio = (s: string | null | undefined) => parseRatioText(s)?.parts ?? null;
+
+// Mangled-ratio repair: bills write "1:3.6:20" where the 20 is the AGGREGATE SIZE
+// in mm, not a mix part — strip a 3rd term > 8, then snap to the nearest standard
+// mix by summed term distance. Caller shows a note whenever the repair changed it.
+function repairRatio(parts: number[]): { parts: number[]; repaired: boolean } {
+  let p = [...parts];
+  if (p.length === 3 && p[2] > 8) p = [p[0], p[1]];
+  let best = p; let bestD = Infinity;
+  for (const s of STANDARD_MIXES) {
+    if (s.length !== p.length) continue;
+    const d = s.reduce((a, v, i) => a + Math.abs(v - p[i]), 0);
+    if (d < bestD) { bestD = d; best = s; }
+  }
+  return { parts: best, repaired: best.join(":") !== parts.join(":") };
 }
 
-type CompDraft = {
-  role: "cement" | "sand" | "granite";
-  materialId: string | null;   // null → will be created on confirm
-  name: string; unit: string; qty: string; waste: string;
-};
-type Group = {
-  key: string; on: boolean; assemblyKind: string; name: string; unit: string;
-  ratioStr: string | null; dryFactor: number; rows: ProposalCandidate[];
-  comps: CompDraft[]; derivable: boolean;
-  avgRate: number | null; labour: string;
-  existing: ExistingAssembly | null; useExisting: boolean;
+type Classified = {
+  assemblyKind: string;
+  ratio: number[] | null;
+  thickness: number | null;    // wall/bed thickness in mm (blockwork/render/screed)
+  repairNote: string | null;
+  contextNote: string | null;
 };
 
-// Classify one candidate row into a mix signature: explicit mix_ratio first, then a
-// ratio or "grade NN" written in the description, then trade keywords. Unrecognized
-// rows are skipped (the user handles them manually on /assemblies).
-function classify(c: ProposalCandidate): { assemblyKind: string; ratio: number[] | null } | null {
+// Classify one candidate: explicit mix_ratio → ratio/grade written in the description
+// → (concrete only) grade/ratio from the section context → trade defaults → custom.
+function classify(c: ProposalCandidate): Classified | null {
   const d = c.description;
-  const explicit = parseRatio(c.mix_ratio) ?? parseRatio(d);
-  const grade = d.match(/grade\s*(15|20|25)/i)?.[1];
-  if (/blockwork/i.test(d)) return { assemblyKind: "blockwork", ratio: explicit ?? parseRatio("1:6") };
-  if (/render/i.test(d)) return { assemblyKind: "render", ratio: explicit ?? parseRatio("1:4") };
-  if (/screed/i.test(d)) return { assemblyKind: "screed", ratio: explicit ?? parseRatio("1:3") };
-  if (/mortar/i.test(d)) return { assemblyKind: "mortar", ratio: explicit ?? parseRatio("1:6") };
-  if (explicit && explicit.length === 3) return { assemblyKind: "concrete", ratio: explicit };
-  if (grade) return { assemblyKind: "concrete", ratio: parseRatio(GRADE_RATIO[grade]) };
-  if (/concrete/i.test(d)) return { assemblyKind: "concrete", ratio: explicit };
-  return null;
+  const explicit = parseRatioText(c.mix_ratio) ?? parseRatioText(d);
+  const descGrade = d.match(/grade\s*(15|20|25)/i)?.[1] ?? null;
+
+  const trade =
+    /blockwork/i.test(d) ? "blockwork" :
+    /render|plaster/i.test(d) ? "render" :
+    /screed/i.test(d) ? "screed" :
+    /mortar/i.test(d) ? "mortar" : null;
+  let kind: string | null = trade;
+  if (!kind && explicit && explicit.parts.length === 3) kind = "concrete";
+  if (!kind && (descGrade || /concrete/i.test(d))) kind = "concrete";
+  if (!kind) return null;
+
+  let thickness: number | null = null;
+  if (kind === "blockwork") thickness = /150\s*mm/i.test(d) ? 150 : 225;
+  else if (kind === "render" || kind === "screed") {
+    const t = Number(d.match(/(\d+(?:\.\d+)?)\s*mm/i)?.[1]);
+    const [def, lo, hi] = kind === "render" ? [15, 5, 50] : [40, 20, 100];
+    thickness = Number.isFinite(t) && t >= lo && t <= hi ? t : def;
+  }
+
+  let ratio: number[] | null = null;
+  let repairNote: string | null = null;
+  let contextNote: string | null = null;
+
+  if (explicit) {
+    const rep = repairRatio(explicit.parts);
+    ratio = rep.parts;
+    if (rep.repaired) {
+      const snapStr = rep.parts.join(":");
+      const tag = RATIO_GRADE[snapStr] ? ` (grade ${RATIO_GRADE[snapStr]} standard)` : " (standard mix)";
+      repairNote = `bill says "${explicit.text}" — interpreted as ${snapStr}${tag}; edit if wrong`;
+    }
+  } else if (descGrade) {
+    ratio = parseRatio(GRADE_RATIO[descGrade]);
+  } else if (kind === "concrete" && c.context) {
+    // Grade-from-context: the section heading often carries what the line omits.
+    const ctxRatio = parseRatioText(c.context);
+    const ctxGrade = c.context.match(/grade\s*(15|20|25)/i)?.[1];
+    if (ctxRatio) {
+      const rep = repairRatio(ctxRatio.parts);
+      ratio = rep.parts;
+      contextNote = `mix ${rep.parts.join(":")} taken from section context ("${ctxRatio.text}")`;
+    } else if (ctxGrade) {
+      ratio = parseRatio(GRADE_RATIO[ctxGrade]);
+      contextNote = `grade ${ctxGrade} from section context`;
+    }
+  }
+  if (!ratio && kind !== "concrete")
+    ratio = parseRatio(kind === "render" ? "1:4" : kind === "screed" ? "1:3" : "1:6");
+
+  return { assemblyKind: kind, ratio, thickness, repairNote, contextNote };
 }
 
-function proposalName(assemblyKind: string, ratioStr: string | null, sampleDesc: string): string {
+function proposalName(assemblyKind: string, ratioStr: string | null, thickness: number | null): string {
   if (assemblyKind === "concrete") {
     const grade = ratioStr ? RATIO_GRADE[ratioStr] : undefined;
     if (grade) return `Concrete grade ${grade} (${ratioStr})`;
     return ratioStr ? `Concrete mix ${ratioStr}` : "Concrete (custom mix)";
   }
-  if (assemblyKind === "blockwork") {
-    const t = sampleDesc.match(/(\d{2,3})\s*mm/i)?.[1];
-    return `${t ? `${t}mm ` : ""}Blockwork (${ratioStr ?? "1:6"} mortar)`;
-  }
+  if (assemblyKind === "blockwork") return `${thickness ?? 225}mm Blockwork (${ratioStr ?? "1:6"} mortar)`;
   const label = assemblyKind[0].toUpperCase() + assemblyKind.slice(1);
+  if ((assemblyKind === "render" || assemblyKind === "screed") && thickness != null)
+    return `${label} ${thickness}mm (${ratioStr ?? "custom"})`;
   return ratioStr ? `${label} ${ratioStr}` : `${label} (custom)`;
 }
 
+type CompDraft = {
+  role: "cement" | "sand" | "granite" | "block";
+  materialId: string | null;   // null → will be created on confirm
+  name: string; unit: string; qty: string; waste: string;
+};
+
 // Auto-pick catalog materials for the mix components by name; a missing one is
 // proposed as "will be created" (fn_upsert_material on confirm).
-function pickComponent(materials: Material[], role: CompDraft["role"]): { materialId: string | null; name: string; unit: string } {
+function pickComponent(materials: Material[], role: "cement" | "sand" | "granite"): { materialId: string | null; name: string; unit: string } {
   const rx = role === "cement" ? /cement/i : role === "sand" ? /sand/i : /granite|gravel|chipping/i;
   const m = materials.find((x) => rx.test(x.name));
   if (m) return { materialId: m.id, name: m.name, unit: role === "cement" ? "bag" : "m3" };
@@ -85,12 +146,92 @@ function pickComponent(materials: Material[], role: CompDraft["role"]): { materi
     unit: role === "cement" ? "bag" : "m3",
   };
 }
+function pickBlock(materials: Material[], thickness: number): { materialId: string | null; name: string; unit: string } {
+  const blocks = materials.filter((m) => /block/i.test(m.name));
+  const m = blocks.find((b) => b.name.includes(String(thickness))) ?? blocks[0];
+  if (m) return { materialId: m.id, name: m.name, unit: "nr" };
+  return { materialId: null, name: `Sandcrete block ${thickness}mm`, unit: "nr" };
+}
+
+const unitIs = (unit: string, kind: "m2" | "m3") => {
+  const u = unit.replace(/\s/g, "").toLowerCase();
+  return kind === "m3" ? u === "m3" || u === "m³" : u === "m2" || u === "m²" || u === "sqm";
+};
+
+// Cement + sand from a mortar volume (m³ of wet mortar per output unit), split by
+// the 2-part ratio with the mortar dry factor — the same dry-volume method as the
+// /assemblies calculator, applied to a bed/joint volume.
+function mortarComps(materials: Material[], vol: number, parts: number[], waste: string): CompDraft[] {
+  const total = parts[0] + parts[1];
+  return [
+    { role: "cement", ...pickComponent(materials, "cement"), qty: ((vol * MORTAR_DRY * (parts[0] / total) * 1000) / BAG_LITRES).toFixed(3), waste },
+    { role: "sand", ...pickComponent(materials, "sand"), qty: (vol * MORTAR_DRY * (parts[1] / total)).toFixed(3), waste },
+  ];
+}
+
+// Derive editable component rows + the working shown to the user. Per m³ for
+// concrete/mortar-family; per m² for blockwork (blocks + joint mortar) and
+// render/screed (bed thickness × ratio). Genuinely unrecognized work stays
+// underivable and keeps the "no breakdown" fallback.
+function deriveComps(materials: Material[], assemblyKind: string, ratio: number[] | null, unit: string, thickness: number | null):
+  { comps: CompDraft[]; working: string | null; dryFactor: number } {
+  if (assemblyKind === "concrete" && ratio && unitIs(unit, "m3")) {
+    const total = ratio.reduce((a, b) => a + b, 0);
+    const comps: CompDraft[] = [
+      { role: "cement", ...pickComponent(materials, "cement"), qty: ((1.54 * (ratio[0] / total) * 1000) / BAG_LITRES).toFixed(3), waste: "1.03" },
+      { role: "sand", ...pickComponent(materials, "sand"), qty: ((1.54 * ratio[1]) / total).toFixed(3), waste: "1.03" },
+    ];
+    if (ratio.length === 3)
+      comps.push({ role: "granite", ...pickComponent(materials, "granite"), qty: ((1.54 * ratio[2]) / total).toFixed(3), waste: "1.03" });
+    return { comps, working: `dry-volume ${ratio.join(":")} per m³ (factor 1.54)`, dryFactor: 1.54 };
+  }
+
+  if (assemblyKind === "blockwork" && unitIs(unit, "m2")) {
+    const t = thickness ?? 225;
+    const vol = t === 150 ? 0.02 : 0.025;
+    const parts = ratio && ratio.length >= 2 ? ratio.slice(0, 2) : [1, 6];
+    const comps: CompDraft[] = [
+      { role: "block", ...pickBlock(materials, t), qty: "10", waste: "1.05" },
+      ...mortarComps(materials, vol, parts, "1.05"),
+    ];
+    return { comps, working: `10 blocks + ${vol} m³ mortar (${parts.join(":")}) per m²`, dryFactor: MORTAR_DRY };
+  }
+
+  if ((assemblyKind === "render" || assemblyKind === "screed") && unitIs(unit, "m2")) {
+    const t = thickness ?? (assemblyKind === "render" ? 15 : 40);
+    const vol = t / 1000;
+    const parts = ratio && ratio.length >= 2 ? ratio.slice(0, 2) : (assemblyKind === "render" ? [1, 4] : [1, 3]);
+    return {
+      comps: mortarComps(materials, vol, parts, "1.05"),
+      working: `${t} mm bed (${parts.join(":")}) per m² → ${vol.toFixed(3)} m³ mortar`,
+      dryFactor: MORTAR_DRY,
+    };
+  }
+
+  if (ratio && unitIs(unit, "m3")) {
+    // mortar/render/screed measured in m³ — straight per-m³ mortar split.
+    const parts = ratio.slice(0, 2);
+    return { comps: mortarComps(materials, 1, parts, "1.05"), working: `dry-volume ${parts.join(":")} per m³ (factor ${MORTAR_DRY})`, dryFactor: MORTAR_DRY };
+  }
+
+  return { comps: [], working: null, dryFactor: assemblyKind === "concrete" ? 1.54 : MORTAR_DRY };
+}
+
+type Group = {
+  key: string; on: boolean; assemblyKind: string; name: string; unit: string;
+  ratioStr: string | null; thickness: number | null; dryFactor: number;
+  rows: ProposalCandidate[]; comps: CompDraft[]; working: string | null;
+  repairNote: string | null; contextNote: string | null;
+  avgRate: number | null; labour: string;
+  existing: ExistingAssembly | null; useExisting: boolean;
+};
 
 // Propose assemblies from composite BOQ lines — THE normal flow for every bill:
 // group by mix signature, reuse an existing matching assembly when there is one,
-// otherwise derive components (same dry-volume math as the /assemblies calculator)
-// and surface the IMPLIED labour (BOQ rate − materials) as the negotiating baseline.
-// Everything is editable and nothing is written until the human confirms (Rule 3).
+// otherwise derive components (per m³ for concrete, per m² for blockwork/render/
+// screed) and surface the IMPLIED labour (BOQ rate − materials) as the negotiating
+// baseline. Everything is editable; nothing is written until the human confirms
+// (Rule 3).
 export function AssemblyProposals({
   orgId, mode, candidates, materials, assemblies, prices, onApplied,
 }: {
@@ -115,38 +256,21 @@ export function AssemblyProposals({
       const sig = classify(c);
       if (!sig) { skipped++; continue; }
       const ratioStr = sig.ratio ? sig.ratio.join(":") : null;
-      const key = `${sig.assemblyKind}|${ratioStr ?? "custom"}`;
+      const key = `${sig.assemblyKind}|${ratioStr ?? "custom"}|${sig.thickness ?? ""}`;
       let g = map.get(key);
       if (!g) {
         const unit = (c.unit ?? (sig.assemblyKind === "concrete" ? "m3" : "m2")).trim();
-        const isConcrete = sig.assemblyKind === "concrete";
-        const dryFactor = isConcrete ? 1.54 : 1.3;
-        const waste = isConcrete ? "1.03" : "1.05";
-        // Per-m³ dry-volume derivation — same math as the /assemblies ratio calculator.
-        const derivable = !!sig.ratio && /^m3|m³$/i.test(unit.replace(/\s/g, ""));
-        let comps: CompDraft[] = [];
-        if (derivable && sig.ratio) {
-          const parts = sig.ratio;
-          const total = parts.reduce((a, b) => a + b, 0);
-          const cement = pickComponent(materials, "cement");
-          const sand = pickComponent(materials, "sand");
-          comps = [
-            { role: "cement", ...cement, qty: ((dryFactor * (parts[0] / total) * 1000) / BAG_LITRES).toFixed(3), waste },
-            { role: "sand", ...sand, qty: ((dryFactor * parts[1]) / total).toFixed(3), waste },
-          ];
-          if (parts.length === 3) {
-            const granite = pickComponent(materials, "granite");
-            comps.push({ role: "granite", ...granite, qty: ((dryFactor * parts[2]) / total).toFixed(3), waste });
-          }
-        }
+        const derived = deriveComps(materials, sig.assemblyKind, sig.ratio, unit, sig.thickness);
         const existing = assemblies.find((a) =>
           (a.ratio && ratioStr && a.ratio.trim() === ratioStr) ||
           (ratioStr && RATIO_GRADE[ratioStr] && a.name.toLowerCase().includes(`grade ${RATIO_GRADE[ratioStr]}`)),
         ) ?? null;
         g = {
           key, on: true, assemblyKind: sig.assemblyKind,
-          name: proposalName(sig.assemblyKind, ratioStr, c.description),
-          unit, ratioStr, dryFactor, rows: [], comps, derivable,
+          name: proposalName(sig.assemblyKind, ratioStr, sig.thickness),
+          unit, ratioStr, thickness: sig.thickness, dryFactor: derived.dryFactor,
+          rows: [], comps: derived.comps, working: derived.working,
+          repairNote: sig.repairNote, contextNote: sig.contextNote,
           avgRate: null, labour: "", existing, useExisting: !!existing,
         };
         map.set(key, g);
@@ -172,6 +296,17 @@ export function AssemblyProposals({
     setGroups((s) => s.map((g, j) => (j === i ? { ...g, ...p } : g)));
   const patchComp = (gi: number, ci: number, p: Partial<CompDraft>) =>
     setGroups((s) => s.map((g, j) => (j === gi ? { ...g, comps: g.comps.map((c, k) => (k === ci ? { ...c, ...p } : c)) } : g)));
+
+  // Editing the ratio re-derives the component quantities (still editable after).
+  function onRatioEdit(gi: number, text: string) {
+    setGroups((s) => s.map((g, j) => {
+      if (j !== gi) return g;
+      const parts = parseRatio(text);
+      if (!parts) return { ...g, ratioStr: text };
+      const d = deriveComps(materials, g.assemblyKind, parts, g.unit, g.thickness);
+      return { ...g, ratioStr: text, comps: d.comps.length ? d.comps : g.comps, working: d.working ?? g.working, dryFactor: d.dryFactor };
+    }));
+  }
 
   const matCostOf = (g: Group) => g.comps.reduce((a, c) =>
     a + (c.materialId && prices[c.materialId] != null ? Number(c.qty) * Number(c.waste) * prices[c.materialId] : 0), 0);
@@ -243,7 +378,7 @@ export function AssemblyProposals({
       <div className="px-4 pt-4">
         <p className="text-sm text-[#c7cedb]">
           {groups.length > 0
-            ? <>Composite lines detected — one assembly per mix. Existing assemblies are reused; new ones derive their components from the ratio, and the <strong className="text-white">implied labour</strong> (BOQ rate − materials) is your negotiating baseline. Edit anything before confirming.</>
+            ? <>Composite lines detected — one assembly per mix. Existing assemblies are reused; new ones derive their components from the ratio (per m³ for concrete, per m² for blockwork/render/screed), and the <strong className="text-white">implied labour</strong> (BOQ rate − materials) is your negotiating baseline. Edit anything before confirming.</>
             : <>Composite lines were found but none matched a known mix — create their assemblies manually on /assemblies.</>}
           {groups.length > 0 && built.skipped > 0 && (
             <span className="text-[#8b95a7]"> {built.skipped} composite row(s) matched no known mix — handle those on /assemblies.</span>
@@ -266,7 +401,7 @@ export function AssemblyProposals({
               <label className="flex items-center gap-2">
                 <input type="checkbox" checked={g.on} onChange={(e) => patchGroup(gi, { on: e.target.checked })}
                   className="h-4 w-4 rounded border-white/20 bg-transparent accent-accent-500" />
-                <span className="badge badge-blue">{g.assemblyKind}{g.ratioStr ? ` ${g.ratioStr}` : ""}</span>
+                <span className="badge badge-blue">{g.assemblyKind}{g.ratioStr ? ` ${g.ratioStr}` : ""}{g.thickness ? ` · ${g.thickness}mm` : ""}</span>
               </label>
               <span className="text-xs text-[#8b95a7]">{g.rows.length} row(s)</span>
               {g.existing && (
@@ -276,14 +411,25 @@ export function AssemblyProposals({
                 </button>
               )}
             </div>
+            {g.repairNote && (
+              <p className="mt-2 flex items-start gap-1.5 text-xs text-accent-300">
+                <IconAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />{g.repairNote}
+              </p>
+            )}
+            {g.contextNote && <p className="mt-1.5 text-xs text-[#8b95a7]">{g.contextNote}</p>}
 
             {!(g.useExisting && g.existing) && (
               <>
-                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                <div className="mt-3 grid gap-2 sm:grid-cols-4">
                   <div className="sm:col-span-2">
                     <label className="label">Assembly name</label>
                     <input className="input py-1.5" value={g.name} disabled={busy || done}
                       onChange={(e) => patchGroup(gi, { name: e.target.value })} />
+                  </div>
+                  <div>
+                    <label className="label">Mix ratio</label>
+                    <input className="input py-1.5" placeholder="e.g. 1:2:4" value={g.ratioStr ?? ""} disabled={busy || done}
+                      onChange={(e) => onRatioEdit(gi, e.target.value)} />
                   </div>
                   <div>
                     <label className="label">Output unit</label>
@@ -293,42 +439,45 @@ export function AssemblyProposals({
                 </div>
 
                 {g.comps.length > 0 ? (
-                  <div className="mt-3 overflow-x-auto">
-                    <table className="table-base min-w-[560px]">
-                      <thead><tr><th>Component</th><th>Qty / {g.unit || "unit"}</th><th>Unit</th><th>Waste ×</th><th className="text-right">Price</th></tr></thead>
-                      <tbody>
-                        {g.comps.map((c, ci) => (
-                          <tr key={c.role}>
-                            <td>
-                              <select className="select py-1.5" value={c.materialId ?? "__new__"} disabled={busy || done}
-                                onChange={(e) => {
-                                  const v = e.target.value;
-                                  if (v === "__new__") patchComp(gi, ci, { materialId: null });
-                                  else {
-                                    const m = materials.find((x) => x.id === v);
-                                    patchComp(gi, ci, { materialId: v, name: m?.name ?? c.name });
-                                  }
-                                }}>
-                                <option value="__new__">+ will be created: {c.name}</option>
-                                {materials.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-                              </select>
-                            </td>
-                            <td><input type="number" step="0.001" className="input w-24 py-1.5" value={c.qty} disabled={busy || done}
-                              onChange={(e) => patchComp(gi, ci, { qty: e.target.value })} /></td>
-                            <td className="text-[#8b95a7]">{c.unit}</td>
-                            <td><input type="number" step="0.01" className="input w-20 py-1.5" value={c.waste} disabled={busy || done}
-                              onChange={(e) => patchComp(gi, ci, { waste: e.target.value })} /></td>
-                            <td className="text-right font-mono text-xs text-[#8b95a7]">
-                              {c.materialId && prices[c.materialId] != null ? ngn(prices[c.materialId]) : "unpriced"}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  <>
+                    {g.working && <p className="mt-3 text-xs text-[#8b95a7]">Working: {g.working} — quantities below are editable.</p>}
+                    <div className="mt-2 overflow-x-auto">
+                      <table className="table-base min-w-[560px]">
+                        <thead><tr><th>Component</th><th>Qty / {g.unit || "unit"}</th><th>Unit</th><th>Waste ×</th><th className="text-right">Price</th></tr></thead>
+                        <tbody>
+                          {g.comps.map((c, ci) => (
+                            <tr key={c.role}>
+                              <td>
+                                <select className="select py-1.5" value={c.materialId ?? "__new__"} disabled={busy || done}
+                                  onChange={(e) => {
+                                    const v = e.target.value;
+                                    if (v === "__new__") patchComp(gi, ci, { materialId: null });
+                                    else {
+                                      const m = materials.find((x) => x.id === v);
+                                      patchComp(gi, ci, { materialId: v, name: m?.name ?? c.name });
+                                    }
+                                  }}>
+                                  <option value="__new__">+ will be created: {c.name}</option>
+                                  {materials.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                                </select>
+                              </td>
+                              <td><input type="number" step="0.001" className="input w-24 py-1.5" value={c.qty} disabled={busy || done}
+                                onChange={(e) => patchComp(gi, ci, { qty: e.target.value })} /></td>
+                              <td className="text-[#8b95a7]">{c.unit}</td>
+                              <td><input type="number" step="0.01" className="input w-20 py-1.5" value={c.waste} disabled={busy || done}
+                                onChange={(e) => patchComp(gi, ci, { waste: e.target.value })} /></td>
+                              <td className="text-right font-mono text-xs text-[#8b95a7]">
+                                {c.materialId && prices[c.materialId] != null ? ngn(prices[c.materialId]) : "unpriced"}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
                 ) : (
                   <p className="mt-3 text-xs text-accent-300">
-                    Components couldn&apos;t be derived for a {g.unit || "?"} output — the assembly is created without them; add components on /assemblies.
+                    No breakdown could be derived for this work — the assembly is created without components; add them on /assemblies.
                   </p>
                 )}
 

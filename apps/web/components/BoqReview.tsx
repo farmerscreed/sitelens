@@ -118,6 +118,8 @@ export function BoqReview({
       id: r.id, description: r.resolved_text ?? r.raw_text,
       mix_ratio: r.mix_ratio, boq_rate: r.parsed_rate,
       unit: r.unit_normalized ?? r.parsed_unit,
+      // Section headings often carry the grade the line itself omits.
+      context: (r.section_path ?? []).filter(Boolean).join(" · ") || null,
     })),
     [items],
   );
