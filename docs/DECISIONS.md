@@ -364,3 +364,16 @@ logged here so the founder can review drift. Newest at the bottom.
 52. **Edge deploys use `supabase functions deploy --use-api --project-ref …`.** The CLI
     is logged in but `supabase link` needs the DB password interactively on this box;
     `--project-ref` + API bundling needs neither Docker nor a link.
+53. **Per-m² assembly derivation uses standard QS constants (editable, confirm-first).**
+    Blockwork: 10 blocks/m² + mortar 0.025 m³/m² (225 mm wall) or 0.020 (150 mm),
+    mortar dry factor 1.3, default ratio 1:6. Render/plaster: thickness (default
+    15 mm) × area → mortar at 1:4; screed default 40 mm at 1:3. Concrete stays on
+    the dry-volume method (1.54, bag = 34.5 L). Every derived figure is shown with
+    its working and is editable before `fn_upsert_assembly` — the constants are
+    defaults, never facts (Rule 3).
+54. **Mangled bill ratios are repaired, visibly.** "1:3.6:20mm aggregate" → strip a
+    third term > 8 (aggregate size), snap to the nearest standard mix (1:1.5:3,
+    1:2:4, 1:3:6, 1:3, 1:4, 1:6), and show "bill says X — interpreted as Y; edit
+    if wrong". Never silently corrected. Bare concrete lines borrow the grade from
+    their element/section context, labelled as such, before falling back to
+    "custom, no breakdown".

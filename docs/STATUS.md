@@ -34,6 +34,15 @@ Commits e20fc08 → 512a3d7.
   real-upload failure (sequential AI calls blew the edge wall clock → parallel +
   time-boxed + degrade-to-deterministic).
 
+**Post-test rounds (same day, founder-driven):** alias memory widened to TEXT
+(varchar-200 choked on real QS descriptions); blended estimate (est_cost/est_source:
+live build-up else labelled QS-rate fallback — recipe header shows coverage %);
+fn_update_work_item (re-kind + attach); AssemblyProposals in the NORMAL flow (review
+"Set up from this bill" step 3 + recipe page): grouped by mix signature, existing-
+assembly reuse, implied labour = BOQ rate − materials as the negotiating baseline;
+per-m² derivation for blockwork/render/screed (DECISIONS #53), mangled-ratio repair +
+grade-from-context (#54). 37 migrations, 25 suites.
+
 **Open:** founder re-tests the full flow on sitelens-eosin.vercel.app (upload → stepper
 → bootstrap → confirm → recipe true-cost); tune AI enrichment prompts on feedback.
 Latent fix shipped en route: `materials_catalog.id` had no DEFAULT (new-material
