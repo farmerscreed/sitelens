@@ -1,10 +1,16 @@
-// Edge Function: PDF BOQ extraction (F-BOQ-2 / AI-7). A vision model (via the
-// OpenRouter router) extracts rows; every row is staged as a PROPOSAL a human
-// confirms — never auto-committed (Rule 3). DEV_AI_MODE returns canned rows so this
-// runs with no paid key.
-// Deno runtime; code-complete (edge-runtime not managed on this dev box).
+// Edge Function: BOQ extraction v2 (BOQ_TRUE_COST_DESIGN §10) — ONE brain, all lanes.
+//  • Spreadsheets: the browser parses the grid (SheetJS, no edge OOM) and sends the
+//    raw cells here; the deterministic core classifies the document grammar, the AI
+//    enriches item rows (kind/stage/material/mix).
+//  • PDF / photo: the AI extracts rows against the same grammar (vision).
+// Pass 3 (deterministic) validates arithmetic and reconciles against the bill's own
+// totals. Every row is staged as a PROPOSAL via fn_stage_boq_rows_v2 (Rule 3);
+// nothing auto-commits. DEV_AI_MODE keeps the whole pipeline runnable with no key.
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { extractBoqFromPdf, extractBoqFromImage } from "../_shared/ai-router.ts";
+import {
+  annotateGrid, devSuggestKinds, validateAndReconcile, toStagePayload, normalizeUnit,
+} from "../_shared/boq_core.mjs";
+import { enrichBoqRows, extractBoqV2FromFile, type BoqV2Row, type StageRef } from "../_shared/ai-router.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -14,7 +20,7 @@ const cors = {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   try {
-    const { fileBase64, orgId, buildingTypeId, sourceMediaId, mime } = await req.json();
+    const { orgId, buildingTypeId, gridRows, fileBase64, mime, sourceMediaId, format } = await req.json();
     const authHeader = req.headers.get("Authorization") ?? "";
     const supa = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -22,23 +28,63 @@ Deno.serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } },
     );
 
-    // PDF → file content type; image (photo/scan) → image_url. Auto-routed by mime.
-    const isImage = typeof mime === "string" && mime.startsWith("image/");
-    const rows = isImage ? await extractBoqFromImage(fileBase64, mime) : await extractBoqFromPdf(fileBase64);
-    const format = (isImage ? (mime.split("/")[1] || "image") : "pdf").slice(0, 10);
+    // Recipe stages give the AI its stage-suggestion vocabulary.
+    let stages: StageRef[] = [];
+    if (buildingTypeId) {
+      const { data } = await supa.from("type_stages")
+        .select("id,name,sequence").eq("building_type_id", buildingTypeId).order("sequence");
+      stages = (data ?? []) as StageRef[];
+    }
+
+    const modelId = (Deno.env.get("DEV_AI_MODE") ?? "true") !== "false"
+      ? "dev" : (Deno.env.get("AI_BOQ_MODEL") ?? "anthropic/claude-sonnet-5");
+
+    let rows: BoqV2Row[]; let fmt: string;
+    if (Array.isArray(gridRows)) {
+      // Spreadsheet lane: deterministic grammar first, AI enrichment on top.
+      const annotated = annotateGrid(gridRows).rows as BoqV2Row[];
+      devSuggestKinds(annotated);                       // baseline kinds (dev + fallback)
+      rows = await enrichBoqRows(annotated, stages);    // no-op in DEV_AI_MODE
+      fmt = (format === "csv" ? "csv" : "xlsx");
+    } else if (typeof fileBase64 === "string") {
+      // PDF / photo lane: the model extracts against the same grammar.
+      const isImage = typeof mime === "string" && mime.startsWith("image/");
+      rows = await extractBoqV2FromFile(fileBase64, mime ?? "application/pdf", stages);
+      for (const r of rows) {                           // pass-3 backstops
+        if (r.unit && !r.unit_normalized) r.unit_normalized = normalizeUnit(r.unit);
+        r.flags = r.flags ?? [];
+        if (r.row_kind === "item" && r.unit && !r.unit_normalized && !r.flags.includes("unknown_unit")) r.flags.push("unknown_unit");
+        r.section_path = r.section_path ?? [];
+      }
+      devSuggestKinds(rows);
+      fmt = (isImage ? (mime.split("/")[1] || "image") : "pdf").slice(0, 10);
+    } else {
+      return json({ error: "send gridRows (spreadsheet) or fileBase64 (pdf/photo)" }, 400);
+    }
+
+    // Pass 3: arithmetic checks + reconciliation vs the bill's own totals (§5).
+    const out = validateAndReconcile(rows);
 
     const { data: importId, error: e1 } = await supa.rpc("fn_create_boq_import", {
       p_org: orgId, p_building_type: buildingTypeId ?? null,
-      p_format: format, p_source_media: sourceMediaId ?? null,
+      p_format: fmt, p_source_media: sourceMediaId ?? null,
     });
     if (e1) return json({ error: e1.message }, 400);
 
-    const { data: staged, error: e2 } = await supa.rpc("fn_stage_boq_rows", {
-      p_import: importId, p_rows: rows,
+    const { data: staged, error: e2 } = await supa.rpc("fn_stage_boq_rows_v2", {
+      p_import: importId,
+      p_rows: toStagePayload(out.rows, modelId),
+      p_document_totals: out.document_totals,
+      p_reconciliation: out.reconciliation,
     });
     if (e2) return json({ error: e2.message }, 400);
 
-    return json({ importId, staged, proposals: rows.length });
+    return json({
+      importId, staged,
+      reconciliation: out.reconciliation,
+      unpriced_count: out.unpriced_count,
+      priced_total: out.priced_total,
+    });
   } catch (e) {
     return json({ error: String(e) }, 400);
   }

@@ -20,7 +20,7 @@ function detectKind(f: File): Kind {
   return "unknown";
 }
 const KIND_LABEL: Record<Kind, string> = {
-  sheet: "Spreadsheet — read in your browser, you map the columns",
+  sheet: "Spreadsheet — parsed here, understood by the extraction brain",
   pdf: "PDF — read by AI vision",
   image: "Photo / scan — read by AI vision",
   unknown: "Unrecognised type",
@@ -39,91 +39,54 @@ async function fnError(error: any): Promise<string> {
   try { const body = await error?.context?.json?.(); if (body?.error) return String(body.error); } catch { /* */ }
   return error?.message ?? String(error);
 }
-const sigOf = (headers: string[]) => headers.map((h) => h.trim().toLowerCase()).join("|");
 
+// BOQ import v2 (BOQ_TRUE_COST_DESIGN §10): ONE extraction brain for every format.
+// Spreadsheets are parsed in the browser (SheetJS — no edge memory limit) and the raw
+// grid goes to the edge function, where the document grammar is decoded, arithmetic is
+// validated, and the extraction is RECONCILED against the bill's own totals. PDF/photo
+// go to the same function as files. Every row is staged as a proposal you review.
 export function BoqImportWizard({ orgId, types }: { orgId: string; types: Type[] }) {
   const router = useRouter();
   const supabase = createClient();
   const [typeId, setTypeId] = useState(types[0]?.id ?? "");
   const [file, setFile] = useState<File | null>(null);
   const [kind, setKind] = useState<Kind>("unknown");
-  const [headers, setHeaders] = useState<string[] | null>(null);
-  const [rows, setRows] = useState<any[][]>([]);
-  const [map, setMap] = useState({ item: 0, quantity: 1, unit: 2, rate: -1 });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   function onPick(f: File | null) {
-    setFile(f); setHeaders(null); setRows([]); setErr(null);
+    setFile(f); setErr(null);
     setKind(f ? detectKind(f) : "unknown");
   }
 
-  // Spreadsheets are parsed IN THE BROWSER (no edge-function memory limit / cold start).
   async function start() {
     if (!file) return;
     setBusy(true); setErr(null);
     try {
+      let body: Record<string, unknown>;
       if (kind === "sheet") {
         const XLSX = await import("xlsx");
         const wb = XLSX.read(new Uint8Array(await file.arrayBuffer()), { type: "array" });
-        const grid = XLSX.utils.sheet_to_json<any[]>(wb.Sheets[wb.SheetNames[0]], { header: 1, blankrows: false });
+        const grid = XLSX.utils.sheet_to_json<any[]>(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: "", blankrows: true });
         if (!grid.length) { setErr("That sheet looks empty."); return; }
-        const hs = (grid[0] as any[]).map((h) => String(h ?? ""));
-        setHeaders(hs);
-        setRows(grid.slice(1) as any[][]);
-        // Pre-fill a remembered mapping for this header layout, if any.
-        const { data: mem } = await supabase.from("boq_column_mappings").select("mapping").eq("header_signature", sigOf(hs)).maybeSingle();
-        const m = (mem as any)?.mapping;
-        if (m) setMap({ item: m.item ?? 0, quantity: m.quantity ?? 1, unit: m.unit ?? -1, rate: m.rate ?? -1 });
+        body = {
+          orgId, buildingTypeId: typeId, gridRows: grid,
+          format: file.name.toLowerCase().endsWith(".csv") ? "csv" : "xlsx",
+        };
       } else {
-        // PDF / image → server-side AI vision (needs the API key).
         const fileBase64 = await fileToBase64(file);
         const mime = file.type || (kind === "pdf" ? "application/pdf" : "image/jpeg");
-        const { data, error } = await supabase.functions.invoke("boq-extract-pdf", { body: { fileBase64, orgId, buildingTypeId: typeId, mime } });
-        if (error) { setErr(await fnError(error)); return; }
-        router.push(`/boq-import/${data.importId}`);
+        body = { orgId, buildingTypeId: typeId, fileBase64, mime };
       }
+      const { data, error } = await supabase.functions.invoke("boq-extract-pdf", { body });
+      if (error) { setErr(await fnError(error)); return; }
+      router.push(`/boq-import/${data.importId}`);
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
   }
-
-  // Stage the mapped spreadsheet rows straight through the RPCs (client is authenticated).
-  async function stage() {
-    if (!headers) return;
-    setBusy(true); setErr(null);
-    try {
-      const staged = rows
-        .filter((r) => String(r[map.item] ?? "").trim() !== "")
-        .map((r) => ({
-          raw_text: String(r[map.item] ?? "").trim(),
-          parsed_qty: r[map.quantity] != null ? String(r[map.quantity]) : "",
-          parsed_unit: map.unit >= 0 ? String(r[map.unit] ?? "") : "",
-          parsed_rate: map.rate >= 0 && r[map.rate] != null ? String(r[map.rate]) : "",
-        }));
-      if (!staged.length) { setErr("No rows found in the 'Item' column — check the mapping."); return; }
-      const fmt = (file?.name.toLowerCase().endsWith(".csv") ? "csv" : "xlsx");
-      const { data: importId, error: e1 } = await supabase.rpc("fn_create_boq_import", {
-        p_org: orgId, p_building_type: typeId, p_format: fmt, p_source_media: null,
-      });
-      if (e1) { setErr(e1.message); return; }
-      const { error: e2 } = await supabase.rpc("fn_stage_boq_rows", { p_import: importId, p_rows: staged });
-      if (e2) { setErr(e2.message); return; }
-      const mapping: Record<string, number> = { item: map.item, quantity: map.quantity };
-      if (map.unit >= 0) mapping.unit = map.unit;
-      if (map.rate >= 0) mapping.rate = map.rate;
-      await supabase.rpc("fn_remember_column_mapping", { p_org: orgId, p_signature: sigOf(headers), p_mapping: mapping });
-      router.push(`/boq-import/${importId}`);
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  const colOptions = (headers ?? []).map((h, i) => <option key={i} value={i}>{h || `Column ${i + 1}`}</option>);
 
   // A BOQ populates a RECIPE (building type). You need one first.
   if (types.length === 0) {
@@ -144,14 +107,13 @@ export function BoqImportWizard({ orgId, types }: { orgId: string; types: Type[]
     );
   }
 
-  const cta = kind === "sheet" ? "Read spreadsheet" : kind === "unknown" ? "Continue" : "Extract with AI";
-
   return (
     <div className="max-w-2xl space-y-4">
       <div className="rounded-2xl border border-white/[0.06] bg-white/[0.015] p-4 text-sm text-[#8b95a7]">
-        A BOQ populates the material quantities of a <strong className="text-[#c7cedb]">recipe</strong>. Pick which recipe to fill and
-        upload the bill in any format — <strong className="text-[#c7cedb]">Excel, CSV, PDF or a photo</strong>. The format is detected
-        automatically, and every extracted row becomes a proposal you review before it&apos;s saved.
+        Upload the bill in any format — <strong className="text-[#c7cedb]">Excel, CSV, PDF or a photo</strong>. The system
+        reads it the way a QS does: real items are separated from notes and totals, &quot;Ditto&quot; is resolved, units are
+        normalised, and the extraction is <strong className="text-[#c7cedb]">checked against the bill&apos;s own totals</strong> before
+        you review a single row.
       </div>
 
       <section className="card">
@@ -181,26 +143,11 @@ export function BoqImportWizard({ orgId, types }: { orgId: string; types: Type[]
         )}
 
         <button className="btn btn-primary mt-4" disabled={busy || !file || !typeId || kind === "unknown"} onClick={start}>
-          <IconUpload className="h-4 w-4" />{busy ? "Working…" : cta}
+          <IconUpload className="h-4 w-4" />{busy ? "Reading the bill…" : "Extract & check"}
         </button>
         {kind === "unknown" && file && <p className="mt-2 text-xs text-red-300">Unsupported file type — use Excel, CSV, PDF, or an image (JPG/PNG).</p>}
         {err && <p className="mt-3 flex items-start gap-1.5 text-sm text-red-300"><IconAlert className="mt-0.5 h-4 w-4 shrink-0" /><span className="break-words">{err}</span></p>}
       </section>
-
-      {headers && (
-        <section className="card">
-          <h2 className="text-sm font-semibold text-white">Map the columns</h2>
-          <p className="mt-0.5 text-xs text-[#8b95a7]">{rows.length} row(s) found. Tell us which column is which.</p>
-          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div><label className="label">Item</label><select className="select" value={map.item} onChange={(e) => setMap({ ...map, item: +e.target.value })}>{colOptions}</select></div>
-            <div><label className="label">Quantity</label><select className="select" value={map.quantity} onChange={(e) => setMap({ ...map, quantity: +e.target.value })}>{colOptions}</select></div>
-            <div><label className="label">Unit</label><select className="select" value={map.unit} onChange={(e) => setMap({ ...map, unit: +e.target.value })}><option value={-1}>—</option>{colOptions}</select></div>
-            <div><label className="label">Rate</label><select className="select" value={map.rate} onChange={(e) => setMap({ ...map, rate: +e.target.value })}><option value={-1}>—</option>{colOptions}</select></div>
-          </div>
-          <p className="mt-2 text-xs text-[#8b95a7]">The mapping is remembered per org for this header layout.</p>
-          <button className="btn btn-primary mt-4" disabled={busy} onClick={stage}>{busy ? "Staging…" : "Stage rows for review"}</button>
-        </section>
-      )}
     </div>
   );
 }
