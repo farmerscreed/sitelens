@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { activeOrgFromToken } from "@/lib/activeOrg";
 import { RecipeEditor } from "@/components/RecipeEditor";
-import { WorkItemKindSelect } from "@/components/WorkItemKindSelect";
+import { BulkKindAccept } from "@/components/BulkKindAccept";
 import { AssemblyProposals } from "@/components/AssemblyProposals";
 import { IconAlert } from "@/components/icons";
 
@@ -149,6 +149,17 @@ export default async function RecipeDetail({ params }: { params: { id: string } 
                 <span className="ml-2 font-normal text-[#8b95a7]">— attach mixes and fix line types so more of the bill uses your prices</span>
               </summary>
               <div className="space-y-5 border-t border-white/[0.06] p-5">
+                {otherRows.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-white">Lines that need a type</h3>
+                    <BulkKindAccept
+                      items={otherRows.map((r) => ({
+                        id: r.id, description: r.description,
+                        element_name: r.element_name, section_name: r.section_name,
+                      }))}
+                    />
+                  </div>
+                )}
                 {proposalCandidates.length > 0 && (
                   <div>
                     <h3 className="text-sm font-semibold text-white">Mixes for lines done on site</h3>
@@ -160,19 +171,6 @@ export default async function RecipeDetail({ params }: { params: { id: string } 
                       assemblies={assemblies ?? []}
                       prices={prices}
                     />
-                  </div>
-                )}
-                {otherRows.length > 0 && (
-                  <div>
-                    <h3 className="text-sm font-semibold text-white">Lines that need a type</h3>
-                    <ul className="mt-2 space-y-2">
-                      {otherRows.map((r) => (
-                        <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white/[0.02] px-3 py-2">
-                          <span className="min-w-0 flex-1 text-[13px] leading-snug text-[#c7cedb]">{r.description}</span>
-                          <WorkItemKindSelect id={r.id} kind={r.kind} />
-                        </li>
-                      ))}
-                    </ul>
                   </div>
                 )}
                 {noPriceCount > 0 && (
