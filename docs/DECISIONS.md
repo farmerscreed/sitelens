@@ -398,3 +398,32 @@ logged here so the founder can review drift. Newest at the bottom.
     silent flag flip. Standing design rule recorded the same day: EASE OF USE
     FIRST in every design (data-derived defaults, one-tap bulk actions, builder
     words, visible feedback, done-things disappear, explain why inline).
+57. **Archive (soft-delete), not hard-delete, for buildings and recipes (pilot,
+    2026-07-31).** The pilot stamped 6+ buildings from an EMPTY recipe (Terrace
+    Type A) with no way to remove them, re-point them, or delete the recipe.
+    Chosen: reversible archive (`archived_at`/`archived_by`), consistent with the
+    append-only philosophy and the existing projects-archive precedent — never a
+    hard delete on money-adjacent rows. `fn_archive_building` /
+    `fn_unarchive_building` / `fn_archive_building_type` / `fn_unarchive_building_type`
+    (SECURITY DEFINER, manager-gated, audited; tables keep NO client write policy —
+    Rule 1). A building's `(project, code)` uniqueness became a PARTIAL unique index
+    (`WHERE archived_at IS NULL`) so an archived code frees up for re-stamping the
+    same code onto the right recipe. Archiving a recipe is BLOCKED while any LIVE
+    building uses it (archive/move them first) — no building is ever left pointing at
+    a hidden recipe. `board_view` and the recipe library already filter archived out.
+    "Change a building's type" = archive + re-stamp from the correct type (the stamp
+    flow already exists); there is no in-place type swap because stage-progress rows
+    are wired to the type's stages. No hard-delete path was added.
+58. **Earned value blends the QS-rate fallback, same basis as the budget (pilot,
+    2026-07-31).** `building_work_ev.planned_value`/`earned_value` valued work from
+    `fn_work_item_unit_cost` ALONE (own build-up), while the budget photo
+    (`fn_snapshot_building_budget`) and the money card's "remaining" already used the
+    BLENDED `COALESCE(own build-up, boq_rate)` — the same est_cost the recipe headline
+    uses. A real Type-B building therefore showed a ₦288.8M budget but a ₦140.7M
+    planned value (the ₦148M across 53 QS-rate lines was silently dropped, and % progress
+    measured against < the whole job). Fix: blend planned/earned/unit_cost the same way
+    and expose `est_source` (build_up | boq_rate) so the fallback is labelled, never
+    silent (Rule 4). building_money unaffected (its "remaining" already COALESCE'd;
+    "earned" now correctly counts QS-rate lines with logged work). The building page
+    tags QS-rate lines "QS rate". A view-only change; CREATE OR REPLACE + appended
+    est_source column keeps building_money valid.

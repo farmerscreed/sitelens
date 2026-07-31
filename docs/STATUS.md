@@ -7,6 +7,30 @@ session. Newest status at the top of each section._
 
 ## ▶ NEXT SESSION — start here
 
+**M8 PILOT IN PROGRESS — Area 1 (Board & building ops), 2026-07-31 (session cont'd).**
+Testing the live app area-by-area on the founder's real cloud data. Two fixes built,
+tested (`bash scripts/verify_all.sh` → **43 migrations, 26 suites green**, incl. new
+`archive` suite), and DEPLOYED to cloud (DB via MCP `apply_migration` + Vercel):
+- **Archive (soft-delete) for buildings + recipes** (DECISIONS #57) — the pilot had
+  stamped buildings from the EMPTY Terrace Type A recipe with no way to undo. Archive
+  buttons on the building page + recipe page; partial unique index frees the code for
+  re-stamping. Founder archived all Type-A buildings + re-stamped **PE009 from Terrace
+  Type B (6 Blocks)** — the real ₦288.8M recipe. **Still to do: archive the now-empty
+  Terrace Type A recipe** (Recipes → Terrace Type A → Archive recipe; unblocked now
+  that no live building uses it).
+- **Earned value blends the QS-rate fallback** (DECISIONS #58) — building EV
+  planned/earned used own-build-ups only (₦140.7M) while the budget photo blended
+  (₦288.8M); now `building_work_ev` blends `COALESCE(own, boq_rate)` + labels
+  `est_source`. PE009 planned value verified = ₦288,805,238 = recipe.
+Cloud DB migrations ledger diverges from local names (apply single migrations via MCP
+`apply_migration`, NOT `db push`). This box has no cloud DB password and its
+`SUPABASE_ACCESS_TOKEN` lacks DDL privilege → the MCP is the only cloud-DDL path here.
+Env note: this box's Supabase CLI (2.98.1) rejects the committed `[local_smtp]` config
+key (desktop CLI is newer); `supabase start` needs it temporarily renamed to `[inbucket]`
+then restored (git stays clean). **Next in Area 1:** advance a stage + log work on PE009,
+watch the money card move; then continue areas 2–9 (materials → expenses → daily reports
+→ planner → portal → Ask → notifications → break-it).
+
 **BOQ AREA: CLOSED (2026-07-31).** The full pipeline — upload (any format) → live
 progress stepper → Set-up-from-this-bill (stages/materials/mixes/types/prices) →
 confirm → clean recipe document (two totals, the Bill, Shopping list) → building
