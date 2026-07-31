@@ -329,9 +329,24 @@ export function devSuggestKinds(rows) {
     else if (/reinforcement|bar|sand|cement|granite|polythene|membrane|roofing sheet|tiles?\b/.test(t)) r.suggested_kind = "material_supply";
     else if (/excavat|clear|remove|filling|disposal|compact|protect|keep/.test(t)) r.suggested_kind = "labour";
     else if (/door|window|wardrobe|cabinet|sink|wc\b|heater|rail/.test(t)) r.suggested_kind = "fitting";
-    else r.suggested_kind = "other";
+    else if (/soffit|form\s*work|shutter/.test(t)) r.suggested_kind = "plant";
+    else r.suggested_kind = sectionKind(r.section_path) ?? "other";
   }
   return rows;
+}
+
+// When a row's own text is mute ("Pad bases", "To Beam and roof beams"), its BILL
+// SECTION heading usually says what it is — use it before giving up on 'other'.
+export function sectionKind(sectionPath) {
+  const ctx = (sectionPath ?? []).join(" ").toLowerCase();
+  if (!ctx) return null;
+  if (/form\s*work/.test(ctx)) return "plant";
+  if (/reinforcement/.test(ctx)) return "material_supply";
+  if (/concrete|block\s*work|render|plaster|screed|mortar/.test(ctx)) return "composite";
+  if (/iron\s*mongery|doors|windows|sanitary|fittings|fixtures/.test(ctx)) return "fitting";
+  if (/excavat|earthwork|disposal|filling|site preparation|demolition/.test(ctx)) return "labour";
+  if (/provisional/.test(ctx)) return "provisional";
+  return null;
 }
 
 // Serialize staged rows for fn_stage_boq_rows_v2 (numbers as strings, per RPC).
