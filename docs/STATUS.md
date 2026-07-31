@@ -7,43 +7,43 @@ session. Newest status at the top of each section._
 
 ## ▶ NEXT SESSION — start here
 
-**State (2026-07-31, end of session): the entire BOQ→true-cost system is BUILT and
-LIVE on cloud** — 38 migrations, 26 test suites green (`bash scripts/verify_all.sh`),
-web on sitelens-eosin.vercel.app, commits e20fc08 → 248c430. Full detail in the dated
-sections below; judgment calls in DECISIONS #43–55.
+**BOQ AREA: CLOSED (2026-07-31).** The full pipeline — upload (any format) → live
+progress stepper → Set-up-from-this-bill (stages/materials/mixes/types/prices) →
+confirm → clean recipe document (two totals, the Bill, Shopping list) → building
+budget photo → money card + finish buy list → Board dots — is built, deployed, and
+verified: **40 migrations, 26 suites green** (`bash scripts/verify_all.sh`), cloud
+parity confirmed (7 true-cost tables, 5 views, founder's 128 work items intact).
+Last founder-driven refinements: section-heading typing, one-tap re-type,
+give-these-a-price panel w/ unit guard + agreed-rate path + detach (DECISIONS
+#43–55+). Remaining BOQ nits only surface through use — log them as they appear.
 
-**The model (founder-approved, DECISIONS #55):**
-- **Recipe = timeless document**: two totals only (QS total as at import · cost to
-  start today), "the Bill" + "Shopping list", setup collapsed behind a finish-setup
-  notice. Builder vocabulary app-wide (Mixes, the Bill, Shopping list, your price /
-  QS price, mixed on site).
-- **Building = financial event**: budget "photograph" at start
-  (fn_snapshot_building_budget — idempotent, immune to later price moves), money card
-  (budget/spent/earned/forecast from building_money), "To finish this house" buy list
-  (building_finish_takeoff), Board dots (green/amber/gray).
-- **Import = one guided flow**: upload → live progress stepper (polls
-  boq_imports.progress) → Set up from this bill (stages / materials+prices / mixes,
-  incl. per-m² blockwork/render/screed derivation, ratio repair, implied labour =
-  BOQ rate − materials) → confirm → "Recipe ready" finish screen.
+**NEXT: test the rest of the app, area by area (the M8 pilot proper).** Suggested
+order and what "pass" looks like:
 
-**OPEN ITEMS (in priority order):**
-1. **Founder end-to-end test** of the restructure (recipe two-totals → building budget
-   photo → work-done → money card + buy list). Tune on feedback.
-2. **Purchase→price proposals (agreed direction, NOT built):** when a delivery (IN txn)
-   is logged with a unit_price differing from the current list price, propose the
-   update (human confirms) — closes the "estimate tracks the market by itself" loop.
-3. **Prices page format** (founder request, spec UNCLEAR): wants a specific layout +
-   a toggle to tabular view — the example/screenshot never arrived. Ask for it first.
-4. **Repo is PUBLIC on GitHub** — founder should flip to private (flagged twice).
-   Optional: ask GitHub support to GC the briefly-exposed client-bill blob
-   (removed from history 2026-07-30, old SHA may still be fetchable until GC).
-5. M8 pilot continues (21 days of real reports + break-it pass, docs/M8_PILOT.md).
+1. **Board & building ops** — stamp buildings from the recipe, take each budget
+   photo, advance stages, log work done. Pass: money card moves, dots stay honest.
+2. **Materials store (daily ops)** — log real opening stock (IN), issue to
+   buildings (OUT), watch balances/Usage-vs-BOQ/reorder advice + the finish buy
+   list agree. Pass: store never goes negative, numbers reconcile.
+3. **Expenses & approvals** — create, approve under/over threshold, void. Pass:
+   AC-11 behaviour in real use; spends land on the building money card.
+4. **Daily reports + photos (mobile-critical)** — the report flow with media;
+   check AC-2 derivatives + AC-14 (<90 s). This is the pilot's core loop.
+5. **Planner** — build a scenario from the recipe's live cost; check peak-cash
+   makes sense against the money you actually have.
+6. **Client portal** — create a link+PIN, open it logged out; confirm no
+   supplier/price/worker data leaks and access is logged (AC-13).
+7. **Ask + AI proposals** — ask money questions ("what will it take to finish
+   A12?"), accept/reject proposals.
+8. **Notifications/digest** — dev outbox + weekly digest sanity.
+9. **Break-it pass** (docs/M8_PILOT.md, 12 attacks) once 1–8 feel solid.
 
-**Environment quirks that bite:** cloud DDL via MCP apply_migration (founder approves
-prompts); edge deploys `~/.local/bin/supabase functions deploy boq-extract-pdf
---project-ref gwzpqnnwflwkcrowolgx --use-api`; verify via docker exec (this box can't
-kill containers); NEVER `git add docs/` blindly (client bills live there untracked —
-.gitignore now guards docs/*.xlsx).
+Per area: use it like a real site day, note anything confusing/wrong/slow, bring
+the list to a session — same loop as the BOQ area (reason → approve → build →
+deploy). Env gotchas + deploy commands: see the CLOSED-area notes below and
+CLOUD_MIGRATION.md. Still open from before: repo PUBLIC on GitHub (flip to
+private!); purchase→price proposals agreed-not-built; prices-page format needs the
+founder's example.
 
 ---
 
