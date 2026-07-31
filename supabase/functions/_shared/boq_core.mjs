@@ -325,8 +325,11 @@ export function devSuggestKinds(rows) {
     const t = r.resolved_text?.toLowerCase() ?? "";
     // Zone-level is_provisional stays a flag; the KIND classifies the work's nature.
     if (r.unit_normalized === "sum") r.suggested_kind = "provisional";
+    // Supply words BEFORE composite words: "reinforcement for in-situ concrete"
+    // and "12mm diameter in pad base" are STEEL, not concrete.
+    else if (/reinforcement|\bbars?\b|\bdiameter\b|stirrup|sand\b|cement\b|granite|polythene|membrane|roofing sheet|tiles?\b/.test(t)) r.suggested_kind = "material_supply";
+    else if (/soffit|form\s*work|shutter|edges of|sides of/.test(t)) r.suggested_kind = "plant";
     else if (/concrete|blockwork|mortar|render|screed|plaster/.test(t)) r.suggested_kind = "composite";
-    else if (/reinforcement|bar|sand|cement|granite|polythene|membrane|roofing sheet|tiles?\b/.test(t)) r.suggested_kind = "material_supply";
     else if (/excavat|clear|remove|filling|disposal|compact|protect|keep/.test(t)) r.suggested_kind = "labour";
     else if (/door|window|wardrobe|cabinet|sink|wc\b|heater|rail/.test(t)) r.suggested_kind = "fitting";
     else if (/soffit|form\s*work|shutter/.test(t)) r.suggested_kind = "plant";
