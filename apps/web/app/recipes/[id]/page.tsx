@@ -175,10 +175,17 @@ export default async function RecipeDetail({ params }: { params: { id: string } 
                 <div className="stat-label">QS document total (as at import)</div>
                 <div className="mt-1 font-mono text-xl font-semibold text-[#8b95a7]">{ngn(boqDocTotal)}</div>
               </div>
-              <div>
+              <div className="max-w-[20rem]">
                 <div className="stat-label">Cost to start today</div>
                 <div className="mt-1 font-mono text-2xl font-semibold text-white">{ngn(estTotal)}</div>
-                <div className="mt-0.5 text-xs text-emerald-300">{buildUpPct}% your prices</div>
+                {noPriceCount === 0 ? (
+                  <div className="mt-0.5 text-xs text-emerald-300">✓ Fully priced — every contract line has a number</div>
+                ) : (
+                  <div className="mt-0.5 text-xs text-accent-300">{noPriceCount} contract line{noPriceCount === 1 ? "" : "s"} still need{noPriceCount === 1 ? "s" : ""} a price</div>
+                )}
+                <div className="mt-1 text-[11px] leading-snug text-[#8b95a7]">
+                  Your own prices cover {buildUpPct}% of the value — the rest uses the QS&apos;s rates until you replace them (grows as you confirm mixes and agreed rates)
+                </div>
               </div>
             </div>
           )}
