@@ -16,6 +16,11 @@ parity confirmed (7 true-cost tables, 5 views, founder's 128 work items intact).
 Last founder-driven refinements: section-heading typing, one-tap re-type,
 give-these-a-price panel w/ unit guard + agreed-rate path + detach (DECISIONS
 #43–55+). Remaining BOQ nits only surface through use — log them as they appear.
+**Late additions (same day):** rate recommendations from similar priced lines;
+CONTRACT SCOPE (DECISIONS #56) — semi-finished bills read 100% at contract,
+excluded-by-others bucket + per-building VARIATIONS; founder standing order:
+EASE OF USE FIRST in all designs (memory: founder-ease-of-use). 41 migrations,
+27 suites.
 
 **NEXT: test the rest of the app, area by area (the M8 pilot proper).** Suggested
 order and what "pass" looks like:

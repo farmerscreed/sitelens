@@ -387,3 +387,14 @@ logged here so the founder can review drift. Newest at the bottom.
     plus the focus-and-finish buy list (`building_finish_takeoff` = remaining work →
     mixes → stock units − store). Builder vocabulary app-wide: Mixes, the Bill,
     Shopping list, your price / QS price.
+56. **Contract scope: a semi-finished bill is 100% at its contract (founder,
+    2026-07-31).** Every work item is in-contract or excluded (by others);
+    the bill sets the default (priced = in, unpriced = out; insert trigger for
+    future imports). All recipe totals/coverage/setup and building budget photos,
+    EV, and finish buy lists compute over contract lines only; the excluded
+    bucket stays visible with its "to finish fully" value. Pulling an excluded
+    line into ONE building is a dated, audited VARIATION (building_variations,
+    est captured at addition, extends only that building's budget) — never a
+    silent flag flip. Standing design rule recorded the same day: EASE OF USE
+    FIRST in every design (data-derived defaults, one-tap bulk actions, builder
+    words, visible feedback, done-things disappear, explain why inline).
