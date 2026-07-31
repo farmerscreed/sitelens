@@ -175,8 +175,13 @@ export default async function RecipeDetail({ params }: { params: { id: string } 
                       materials={materials ?? []}
                       items={noPriceRows.map((r) => ({
                         id: r.id, kind: r.kind, description: r.description,
+                        element_name: r.element_name,
                         quantity: r.quantity != null ? Number(r.quantity) : null,
                         unit: r.unit, material_id: r.material_id,
+                      }))}
+                      pricedLines={wi.filter((r) => r.boq_rate != null && Number(r.boq_rate) > 0).map((r) => ({
+                        description: r.description, boq_rate: Number(r.boq_rate),
+                        unit: r.unit, element_name: r.element_name,
                       }))}
                     />
                   </div>

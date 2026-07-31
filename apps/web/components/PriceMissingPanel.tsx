@@ -1,14 +1,15 @@
 "use client";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { IconCheck, IconAlert } from "@/components/icons";
 
 type Material = { id: string; name: string; unit: string };
 type Item = {
-  id: string; kind: string; description: string;
+  id: string; kind: string; description: string; element_name: string | null;
   quantity: number | null; unit: string | null; material_id: string | null;
 };
+type PricedLine = { description: string; boq_rate: number; unit: string | null; element_name: string | null };
 type Draft = {
   modeSel: "material" | "rate";
   matSel: string; newName: string; newUnit: string; price: string; rate: string;
@@ -31,14 +32,37 @@ function bestMatch(materials: Material[], description: string): Material | null 
   return best;
 }
 
+const shortDesc = (s: string) => (s.length > 32 ? `${s.slice(0, 32).trim()}…` : s);
+
+// Up to 2 similar PRICED lines from the same bill: same element (+2), same unit
+// (+2), shared description words >3 chars (+1 each); keep score ≥ 3. Turns
+// "guess a number" into "the bill priced the security door at ₦1.25m — anchor
+// on that". Reference only: clicking a chip just fills the input (Rule 3).
+function similarPriced(pricedLines: PricedLine[], it: Item): PricedLine[] {
+  const words = new Set(it.description.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 3));
+  return pricedLines
+    .map((p) => {
+      let score = 0;
+      if (p.element_name && it.element_name && p.element_name === it.element_name) score += 2;
+      if (p.unit && it.unit && normUnit(p.unit) === normUnit(it.unit)) score += 2;
+      for (const w of new Set(p.description.toLowerCase().split(/[^a-z0-9]+/)))
+        if (w.length > 3 && words.has(w)) score += 1;
+      return { p, score };
+    })
+    .filter((x) => x.score >= 3)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 2)
+    .map((x) => x.p);
+}
+
 // "K items have no price — give each one." Two ways per line: price a material
 // (supply/fittings — guarded so a bag-priced material can never be applied to a
 // m²-measured line again) or take an agreed rate per unit (any kind → labour-only
 // 'Rate: …' mix, kind set to labour, stray material cleared). All server
 // functions, all human-entered (Rules 1 & 3). Rows that already carry a material
 // but still price to nothing land here too, with a detach button.
-export function PriceMissingPanel({ orgId, materials, items }: {
-  orgId: string; materials: Material[]; items: Item[];
+export function PriceMissingPanel({ orgId, materials, items, pricedLines = [] }: {
+  orgId: string; materials: Material[]; items: Item[]; pricedLines?: PricedLine[];
 }) {
   const router = useRouter();
   const supabase = createClient();
@@ -162,6 +186,14 @@ export function PriceMissingPanel({ orgId, materials, items }: {
     else router.refresh();
   }
 
+  // Reference chips, computed once per mount (props are server-render stable).
+  const refsOf = useMemo(() => {
+    const m = new Map<string, PricedLine[]>();
+    for (const it of items) m.set(it.id, similarPriced(pricedLines, it));
+    return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   if (items.length === 0) return null;
   const filledCount = items.filter(filled).length;
   const spinner = <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />;
@@ -170,6 +202,9 @@ export function PriceMissingPanel({ orgId, materials, items }: {
     <div className="mt-2 space-y-3">
       <p className="text-sm text-[#c7cedb]">
         {items.length} item{items.length === 1 ? "" : "s"} have no price — give each one.
+      </p>
+      <p className="text-xs text-[#8b95a7]">
+        These lines had no rate in the bill (blank / &quot;NOT APPLICABLE&quot;) — the QS&apos;s own priced lines are used automatically everywhere else.
       </p>
       {err && <p className="flex items-center gap-1.5 text-sm text-red-300"><IconAlert className="h-4 w-4" />{err}</p>}
 
@@ -199,6 +234,7 @@ export function PriceMissingPanel({ orgId, materials, items }: {
                   </span>
                 )}
               </p>
+              <p className="mt-0.5 text-[11px] text-[#5b6473]">The QS left this line unpriced in the bill.</p>
 
               {/* A material is attached but still prices to nothing — say so, offer detach. */}
               {attached && (
@@ -225,6 +261,26 @@ export function PriceMissingPanel({ orgId, materials, items }: {
                   </button>
                 ))}
               </div>
+
+              {/* Anchors from the bill itself — click to fill the active input. */}
+              {(() => {
+                const refs = refsOf.get(it.id) ?? [];
+                return refs.length > 0 ? (
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    <span className="text-[11px] text-[#5b6473]">similar priced lines in this bill:</span>
+                    {refs.map((p, i) => (
+                      <button key={i} type="button" disabled={busy}
+                        title={p.description}
+                        onClick={() => patch(it.id, d.modeSel === "rate" ? { rate: String(p.boq_rate) } : { price: String(p.boq_rate) })}
+                        className="badge badge-blue transition hover:text-white">
+                        {shortDesc(p.description)} — ₦{p.boq_rate.toLocaleString("en-NG")}/{p.unit ?? "unit"}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-2 text-[11px] text-[#5b6473]">no similar priced line in this bill — enter your quote or market rate.</p>
+                );
+              })()}
 
               {d.modeSel === "material" && (
                 canPriceMaterial(it.kind) ? (
