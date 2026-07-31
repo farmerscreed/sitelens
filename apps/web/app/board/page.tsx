@@ -17,12 +17,21 @@ export default async function BoardPage({ searchParams }: { searchParams: { proj
   const { data: projects } = await supabase.from("projects").select("id,name").is("archived_at", null).order("name");
   const projectId = activeProjectId(searchParams, projects ?? []);
 
-  const [{ data: rows }, { data: types }, { data: phases }, { data: batches }] = await Promise.all([
+  const [{ data: rows }, { data: types }, { data: phases }, { data: batches }, { data: moneyRows }] = await Promise.all([
     supabase.from("board_view").select("*").eq("project_id", projectId).order("code"),
     supabase.from("building_types").select("id,name").is("archived_at", null).order("name"),
     supabase.from("phases").select("id,name").eq("project_id", projectId).order("sequence"),
     supabase.from("batches").select("id,name,status").eq("project_id", projectId).order("sequence"),
+    supabase.from("building_money").select("building_id,budget,forecast").eq("project_id", projectId),
   ]);
+
+  // Money health per building: green = forecast within budget, amber = over, gray = no budget photo yet.
+  const money: Record<string, { budget: number | null; forecast: number | null }> = {};
+  for (const r of moneyRows ?? [])
+    money[r.building_id] = {
+      budget: r.budget != null ? Number(r.budget) : null,
+      forecast: r.forecast != null ? Number(r.forecast) : null,
+    };
 
   return (
     <div className="space-y-6">
@@ -43,7 +52,7 @@ export default async function BoardPage({ searchParams }: { searchParams: { proj
         batches={batches ?? []}
       />
 
-      <Board rows={rows ?? []} batches={batches ?? []} types={types ?? []} />
+      <Board rows={rows ?? []} batches={batches ?? []} types={types ?? []} money={money} />
     </div>
   );
 }

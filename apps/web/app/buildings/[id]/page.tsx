@@ -3,7 +3,14 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { CompleteStageButton } from "@/components/CompleteStageButton";
 import { LogWorkDoneForm } from "@/components/LogWorkDoneForm";
+import { SnapshotBudgetButton } from "@/components/SnapshotBudgetButton";
 import { IconChevron, IconCheck, IconAlert } from "@/components/icons";
+
+type Money = {
+  budget: string | null; budget_date: string | null;
+  spent: string | null; earned: string | null; remaining: string | null; forecast: string | null;
+};
+type FinishRow = { material_id: string; qty_needed: string; in_store: string };
 
 type EvRow = {
   work_item_id: string; stage_id: string | null; element_name: string | null;
@@ -24,20 +31,56 @@ export default async function BuildingDetail({ params }: { params: { id: string 
     .from("buildings").select("id,code,status,building_type_id,current_stage_id").eq("id", params.id).single();
   if (!b) redirect("/board");
 
-  const [{ data: stages }, { data: progress }, { data: materials }, { data: rva }, { data: evRows }] = await Promise.all([
+  const [{ data: stages }, { data: progress }, { data: materials }, { data: rva }, { data: evRows }, { data: money }, { data: finishRows }, { data: priceRows }] = await Promise.all([
     supabase.from("type_stages").select("id,name,sequence").eq("building_type_id", b.building_type_id).order("sequence"),
     supabase.from("building_stage_progress").select("stage_id,status,completed_at").eq("building_id", b.id),
-    supabase.from("materials_catalog").select("id,name"),
+    supabase.from("materials_catalog").select("id,name,unit"),
     supabase.from("building_req_vs_actual").select("material_id,required,consumed,overrun").eq("building_id", b.id),
     supabase.from("building_work_ev")
       .select("work_item_id,stage_id,element_name,description,kind,qty_planned,unit,qty_done,unit_cost_live,planned_value,earned_value,boq_amount")
       .eq("building_id", b.id).order("element_name"),
+    supabase.from("building_money")
+      .select("budget,budget_date,spent,earned,remaining,forecast")
+      .eq("building_id", b.id).maybeSingle(),
+    supabase.from("building_finish_takeoff").select("material_id,qty_needed,in_store").eq("building_id", b.id),
+    supabase.from("material_prices").select("material_id,unit_price,effective_from")
+      .lte("effective_from", new Date().toISOString().slice(0, 10))
+      .order("effective_from", { ascending: false }),
   ]);
 
   const ev = (evRows ?? []) as EvRow[];
   const totalPlanned = ev.filter((r) => r.planned_value != null).reduce((a, r) => a + Number(r.planned_value), 0);
   const totalEarned = ev.filter((r) => r.earned_value != null).reduce((a, r) => a + Number(r.earned_value), 0);
   const pctEarned = totalPlanned > 0 ? Math.round((totalEarned / totalPlanned) * 100) : null;
+
+  // Money card: budget photo vs live spent/earned/forecast (building_money view).
+  const m = (money ?? null) as Money | null;
+  const budget = m?.budget != null ? Number(m.budget) : null;
+  const forecast = m?.forecast != null ? Number(m.forecast) : null;
+  const overBy = budget != null && forecast != null ? forecast - budget : null;
+
+  // Latest price per material (rows arrive newest-first).
+  const prices: Record<string, number> = {};
+  for (const p of priceRows ?? [])
+    if (prices[p.material_id] === undefined) prices[p.material_id] = Number(p.unit_price);
+
+  // "To finish this house": remaining work → materials, minus what's in store.
+  const finish = ((finishRows ?? []) as FinishRow[])
+    .map((f) => {
+      const needed = Number(f.qty_needed);
+      const inStore = Number(f.in_store);
+      const buy = Math.max(needed - inStore, 0);
+      const price = prices[f.material_id];
+      return {
+        material_id: f.material_id, needed, inStore, buy,
+        cost: price != null ? buy * price : null,
+        mat: (materials ?? []).find((x) => x.id === f.material_id),
+      };
+    })
+    .sort((a, b) => (a.mat?.name ?? "").localeCompare(b.mat?.name ?? ""));
+  const finishTotal = finish.reduce((a, f) => a + (f.cost ?? 0), 0);
+  const loggedCount = ev.filter((r) => r.qty_done != null).length;
+  const sparseLogging = ev.length > 0 && loggedCount < ev.length / 2;
 
   const statusOf = new Map((progress ?? []).map((p) => [p.stage_id, p.status]));
   const matName = (id: string) => (materials ?? []).find((m) => m.id === id)?.name ?? id;
@@ -52,6 +95,81 @@ export default async function BuildingDetail({ params }: { params: { id: string 
         <h1 className="text-2xl font-semibold tracking-tight text-white">Building {b.code}</h1>
         <span className={`badge ${badge(b.status)}`}>{b.status}</span>
       </header>
+
+      {/* Money card — this building as a financial event, judged against its own
+          budget photo (the recipe stays a live document). */}
+      <section className="card">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold text-white">Money</h2>
+          {budget != null && overBy != null && (
+            overBy > 0
+              ? <span className="badge badge-accent">{ngn(overBy)} over budget</span>
+              : <span className="badge badge-green">On track</span>
+          )}
+        </div>
+        {budget != null ? (
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <div className="stat-label">Budget (photo taken {m?.budget_date ?? "—"})</div>
+              <div className="mt-1 font-mono text-xl font-semibold text-white">{ngn(budget)}</div>
+            </div>
+            <div>
+              <div className="stat-label">Spent so far</div>
+              <div className="mt-1 font-mono text-xl font-semibold text-white">{ngn(m?.spent != null ? Number(m.spent) : 0)}</div>
+            </div>
+            <div>
+              <div className="stat-label">Work done, worth</div>
+              <div className="mt-1 font-mono text-xl font-semibold text-emerald-300">{ngn(m?.earned != null ? Number(m.earned) : 0)}</div>
+            </div>
+            <div>
+              <div className="stat-label">Forecast at finish</div>
+              <div className={`mt-1 font-mono text-xl font-semibold ${overBy != null && overBy > 0 ? "text-accent-300" : "text-white"}`}>{ngn(forecast)}</div>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-3 space-y-3">
+            <p className="text-sm text-[#8b95a7]">
+              The budget is a photo of the recipe&apos;s cost at today&apos;s prices — the recipe stays live; this building remembers its number.
+            </p>
+            <SnapshotBudgetButton buildingId={b.id} />
+          </div>
+        )}
+      </section>
+
+      {/* To finish this house — remaining work → materials, minus store stock. */}
+      {finish.length > 0 && (
+        <section className="card p-0 overflow-hidden">
+          <div className="px-5 pt-5">
+            <h2 className="text-sm font-semibold text-white">To finish this house</h2>
+            <p className="mt-0.5 text-xs text-[#8b95a7]">
+              What the remaining work needs, minus what&apos;s already in store — the buy list to get this building done.
+              {sparseLogging && <span className="text-accent-300"> Based on logged work — log progress for accuracy.</span>}
+            </p>
+          </div>
+          <div className="mt-3 overflow-x-auto">
+            <table className="table-base min-w-[640px]">
+              <thead>
+                <tr><th>Material</th><th className="text-right">Needed to finish</th><th className="text-right">In store</th><th className="text-right">Buy</th><th className="text-right">≈ Cost</th></tr>
+              </thead>
+              <tbody>
+                {finish.map((f) => (
+                  <tr key={f.material_id}>
+                    <td className="text-white">{f.mat?.name ?? f.material_id}</td>
+                    <td className="text-right font-mono">{f.needed.toLocaleString("en-NG", { maximumFractionDigits: 2 })} <span className="text-[#8b95a7]">{f.mat?.unit ?? ""}</span></td>
+                    <td className="text-right font-mono text-[#8b95a7]">{f.inStore.toLocaleString("en-NG", { maximumFractionDigits: 2 })}</td>
+                    <td className={`text-right font-mono ${f.buy > 0 ? "text-white" : "text-[#8b95a7]"}`}>{f.buy.toLocaleString("en-NG", { maximumFractionDigits: 2 })}</td>
+                    <td className="text-right font-mono">{f.cost != null ? ngn(f.cost) : <span className="text-[#5b6473]">no price</span>}</td>
+                  </tr>
+                ))}
+                <tr className="border-t border-white/[0.08]">
+                  <td className="font-semibold text-white" colSpan={4}>Total to buy</td>
+                  <td className="text-right font-mono font-semibold text-white">{ngn(finishTotal)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       <section className="card">
         <h2 className="text-sm font-semibold text-white">Stages</h2>
@@ -112,7 +230,7 @@ export default async function BuildingDetail({ params }: { params: { id: string 
         <>
           <section className="card p-0 overflow-hidden">
             <div className="px-5 pt-5">
-              <h2 className="text-sm font-semibold text-white">Earned value</h2>
+              <h2 className="text-sm font-semibold text-white">Progress (work done)</h2>
               <p className="mt-0.5 text-xs text-[#8b95a7]">
                 Earned = latest cumulative qty done × live unit cost — what the work completed is worth at today&apos;s prices.
               </p>

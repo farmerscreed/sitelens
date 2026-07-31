@@ -39,6 +39,7 @@ export default async function BoqReviewPage({ params }: { params: { id: string }
     <BoqReview
       importId={imp.id}
       orgId={orgId}
+      buildingTypeId={imp.building_type_id}
       format={imp.format ?? ""}
       status={imp.status ?? ""}
       reconciliation={imp.reconciliation ?? null}

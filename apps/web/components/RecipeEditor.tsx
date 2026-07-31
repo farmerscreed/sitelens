@@ -8,13 +8,15 @@ type Stage = { id: string; name: string; sequence: number };
 type Item = { id: string; stage_id: string | null; material_id: string; quantity: number; unit: string };
 type Cost = { id: string; stage_id: string | null; category: string; amount: number };
 type Material = { id: string; name: string; unit: string };
-type Cost3 = { materials_cost: number; nonmaterial_cost: number; total_cost: number };
 
+// The recipe's structural editors. The page header owns the money numbers now
+// (QS total + cost to start today); the manual per-stage materials editor is
+// advanced-only, collapsed — the Bill is the normal way quantities arrive.
 export function RecipeEditor({
-  type, stages, items, costs, materials, cost,
+  type, stages, items, costs, materials,
 }: {
   type: { id: string; name: string; category: string | null; version: number };
-  stages: Stage[]; items: Item[]; costs: Cost[]; materials: Material[]; cost: Cost3;
+  stages: Stage[]; items: Item[]; costs: Cost[]; materials: Material[];
 }) {
   const router = useRouter();
   const supabase = createClient();
@@ -43,18 +45,6 @@ export function RecipeEditor({
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-white">{type.name}</h1>
-          <p className="mt-1 text-sm text-[#8b95a7]">{type.category ?? "—"} · version {type.version}</p>
-        </div>
-        <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] px-5 py-3 text-right">
-          <div className="stat-label">Live cost / building</div>
-          <div className="mt-1 font-mono text-2xl font-semibold text-white">{naira(cost.total_cost)}</div>
-          <div className="mt-0.5 text-xs text-[#8b95a7]">materials {naira(cost.materials_cost)} · other {naira(cost.nonmaterial_cost)}</div>
-        </div>
-      </header>
-
       {/* Stages */}
       <section className="card">
         <h2 className="text-sm font-semibold text-white">Stages</h2>
@@ -77,9 +67,13 @@ export function RecipeEditor({
         </div>
       </section>
 
-      {/* Material quantities */}
-      <section className="card p-0 overflow-hidden">
-        <div className="px-5 pt-5">
+      {/* Manual editors — advanced only; the Bill is the normal source of quantities. */}
+      <details className="card p-0 overflow-hidden">
+        <summary className="cursor-pointer px-5 py-4 text-sm font-semibold text-white">
+          Edit materials manually (advanced)
+          <span className="ml-2 font-normal text-[#8b95a7]">— quantities normally come from the Bill</span>
+        </summary>
+        <div className="border-t border-white/[0.06] px-5 pt-4">
           <h2 className="text-sm font-semibold text-white">Material quantities</h2>
           <p className="mt-0.5 text-xs text-[#8b95a7]">Quantities only — no prices (Rule 4). Cost is computed live from the price list.</p>
         </div>
@@ -107,11 +101,9 @@ export function RecipeEditor({
           <button className="btn btn-primary shrink-0" disabled={busy || !biMat || biQty === ""}
             onClick={() => call("fn_set_type_boq_item", { p_type: type.id, p_stage: biStage || null, p_material: biMat, p_quantity: Number(biQty), p_unit: materials.find((m) => m.id === biMat)?.unit ?? "" })}>Set</button>
         </div>
-      </section>
 
-      {/* Non-material costs */}
-      <section className="card p-0 overflow-hidden">
-        <h2 className="px-5 pt-5 text-sm font-semibold text-white">Non-material costs</h2>
+        {/* Non-material costs */}
+        <h2 className="border-t border-white/[0.06] px-5 pt-4 text-sm font-semibold text-white">Non-material costs</h2>
         <div className="mt-3 overflow-x-auto">
           <table className="table-base">
             <thead><tr><th>Category</th><th className="text-right">Amount</th></tr></thead>
@@ -135,7 +127,7 @@ export function RecipeEditor({
           <button className="btn btn-primary shrink-0" disabled={busy || scAmt === ""}
             onClick={() => call("fn_set_type_stage_cost", { p_type: type.id, p_stage: scStage || null, p_category: scCat, p_amount: Number(scAmt) })}>Set</button>
         </div>
-      </section>
+      </details>
 
       <div className="flex flex-wrap gap-3">
         <button className="btn btn-ghost" disabled={busy}

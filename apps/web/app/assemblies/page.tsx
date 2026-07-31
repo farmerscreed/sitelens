@@ -30,8 +30,8 @@ export default async function AssembliesPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Assemblies"
-        subtitle="Reusable recipes for composite work — a concrete mix, a m² of blockwork — so a single BOQ line explodes into real materials and labour."
+        title="Mixes"
+        subtitle="Reusable recipes for work mixed on site — a concrete mix, a m² of blockwork — so a single bill line breaks into real materials and labour."
         info={{
           what: "An assembly describes what one unit of composite work consumes: e.g. 1 m³ of 1:2:4 concrete = cement + sand + granite (dry-volume factored) + labour. Work items that point at an assembly get a live cost from today's price list — the QS rate stays reference only.",
           steps: [

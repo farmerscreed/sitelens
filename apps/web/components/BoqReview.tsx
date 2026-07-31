@@ -1,5 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { IconCheck, IconAlert } from "@/components/icons";
@@ -73,9 +74,9 @@ function buildMatCandidates(items: Row[]): MatDraft[] {
 // stays a proposal until fn_confirm_boq_import_v2 — the only write path into the
 // recipe's work items. Composite rows can point at an assembly for live costing.
 export function BoqReview({
-  importId, orgId, format, status, reconciliation, pricedTotal, unpricedCount, rows, materials, stages, assemblies, prices,
+  importId, orgId, buildingTypeId, format, status, reconciliation, pricedTotal, unpricedCount, rows, materials, stages, assemblies, prices,
 }: {
-  importId: string; orgId: string; format: string; status: string;
+  importId: string; orgId: string; buildingTypeId: string; format: string; status: string;
   reconciliation: Reconciliation; pricedTotal: number | null; unpricedCount: number | null;
   rows: Row[]; materials: Material[]; stages: Stage[]; assemblies: Assembly[];
   prices: Record<string, number>;
@@ -201,6 +202,10 @@ export function BoqReview({
   const confirmable = (s: (typeof state)[number]) =>
     s.include && (s.kind !== "material_supply" || !!s.material_id);
 
+  // After a successful confirm the review is done: show the finish screen instead
+  // of the table (with the recipe's fresh numbers), not another wall of rows.
+  const [confirmedResult, setConfirmedResult] = useState<{ n: number; est: number | null; pct: number | null } | null>(null);
+
   async function confirm() {
     setBusy(true); setMsg(null);
     const p_items = state.filter(confirmable).map((r) => ({
@@ -210,9 +215,19 @@ export function BoqReview({
       quantity: Number(r.quantity), unit: r.unit,
     }));
     const { data, error } = await supabase.rpc("fn_confirm_boq_import_v2", { p_import: importId, p_items });
+    if (error) { setBusy(false); setMsg({ ok: false, t: error.message }); return; }
+    // Fresh recipe numbers for the finish screen (best effort — the confirm stands).
+    let est: number | null = null; let pct: number | null = null;
+    const { data: stats } = await supabase.from("work_item_cost")
+      .select("est_cost,est_source").eq("building_type_id", buildingTypeId);
+    if (stats) {
+      est = stats.filter((s) => s.est_cost != null).reduce((a, s) => a + Number(s.est_cost), 0);
+      const own = stats.filter((s) => s.est_source === "build_up").reduce((a, s) => a + Number(s.est_cost), 0);
+      pct = est > 0 ? Math.round((own / est) * 100) : 0;
+    }
     setBusy(false);
-    if (error) setMsg({ ok: false, t: error.message });
-    else { setMsg({ ok: true, t: `Confirmed ${data} work item(s) into the recipe.` }); router.refresh(); }
+    setConfirmedResult({ n: Number(data), est, pct });
+    router.refresh();
   }
 
   const rowRisky = (r: Row) => {
@@ -234,6 +249,29 @@ export function BoqReview({
         </p>
       </div>
 
+      {confirmedResult ? (
+        /* Finish screen — the review is done; point at what comes next. */
+        <div className="card">
+          <div className="flex items-center gap-4">
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-300">
+              <IconCheck className="h-5 w-5" />
+            </span>
+            <div>
+              <h2 className="text-lg font-semibold text-white">Recipe ready</h2>
+              <p className="mt-0.5 text-sm text-[#8b95a7]">
+                {confirmedResult.n} work item{confirmedResult.n === 1 ? "" : "s"}
+                {confirmedResult.est != null && <> · Estimate {ngn(confirmedResult.est)}</>}
+                {confirmedResult.pct != null && <> · {confirmedResult.pct}% your prices</>}
+              </p>
+            </div>
+          </div>
+          <div className="mt-5 flex flex-wrap gap-3">
+            <Link href={`/recipes/${buildingTypeId}`} className="btn btn-primary">View the recipe</Link>
+            <Link href="/board" className="btn btn-ghost">Stamp buildings</Link>
+          </div>
+        </div>
+      ) : (
+      <>
       {/* Reconciliation banner — the import's trust signal (§5). */}
       {rec && (
         <div className={`rounded-2xl border p-4 text-sm ${varianceOk ? "border-emerald-500/25 bg-emerald-500/[0.06]" : "border-accent-500/30 bg-accent-500/[0.06]"}`}>
@@ -452,6 +490,8 @@ export function BoqReview({
           </span>
         )}
       </div>
+      </>
+      )}
     </div>
   );
 }

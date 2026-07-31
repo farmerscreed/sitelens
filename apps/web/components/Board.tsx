@@ -23,7 +23,18 @@ function colRank(name: string, seq: number | null): number {
   return i >= 0 ? i : (seq ?? 500);
 }
 
-export function Board({ rows, batches, types }: { rows: Row[]; batches: Batch[]; types: Type[] }) {
+type MoneyDot = { budget: number | null; forecast: number | null };
+
+// Money health dot: green = forecast within the budget photo, amber = over,
+// gray = no budget photo taken yet.
+function moneyDot(m: MoneyDot | undefined): { cls: string; title: string } {
+  if (!m || m.budget == null) return { cls: "bg-white/25", title: "No budget photo yet" };
+  if (m.forecast != null && m.forecast > m.budget)
+    return { cls: "bg-accent-400 shadow-[0_0_6px_0_rgba(251,191,36,0.7)]", title: `Forecast ₦${m.forecast.toLocaleString("en-NG", { maximumFractionDigits: 0 })} — over budget` };
+  return { cls: "bg-emerald-400 shadow-[0_0_6px_0_rgba(52,211,153,0.7)]", title: "On track" };
+}
+
+export function Board({ rows, batches, types, money = {} }: { rows: Row[]; batches: Batch[]; types: Type[]; money?: Record<string, MoneyDot> }) {
   const router = useRouter();
   const supabase = createClient();
   const [batchFilter, setBatchFilter] = useState("");
@@ -88,7 +99,10 @@ export function Board({ rows, batches, types }: { rows: Row[]; batches: Batch[];
                 return (
                   <div key={r.id} className="rounded-xl border border-white/[0.08] bg-ink-850/60 p-3">
                     <div className="flex items-center justify-between gap-2">
-                      <Link className="font-semibold text-white hover:text-accent-300" href={`/buildings/${r.id}`}>{r.code}</Link>
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        {(() => { const d = moneyDot(money[r.id]); return <span title={d.title} className={`h-2 w-2 shrink-0 rounded-full ${d.cls}`} />; })()}
+                        <Link className="truncate font-semibold text-white hover:text-accent-300" href={`/buildings/${r.id}`}>{r.code}</Link>
+                      </span>
                       <span className="truncate text-xs text-[#8b95a7]">{r.type_name}</span>
                     </div>
                     <div className="mt-2 flex items-center gap-2">

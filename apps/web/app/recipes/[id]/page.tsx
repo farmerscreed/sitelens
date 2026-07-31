@@ -4,6 +4,7 @@ import { activeOrgFromToken } from "@/lib/activeOrg";
 import { RecipeEditor } from "@/components/RecipeEditor";
 import { WorkItemKindSelect } from "@/components/WorkItemKindSelect";
 import { AssemblyProposals } from "@/components/AssemblyProposals";
+import { IconAlert } from "@/components/icons";
 
 type WorkRow = {
   id: string; stage_id: string | null; element_name: string | null; section_name: string | null;
@@ -17,12 +18,19 @@ type TakeoffRow = { material_id: string; qty_required: string };
 
 const ngn = (n: number | null | undefined) =>
   n == null ? "—" : `₦${Number(n).toLocaleString("en-NG", { maximumFractionDigits: 0 })}`;
+// Simple words for builders: no jargon on the page.
+const KIND_LABEL: Record<string, string> = {
+  material_supply: "supply", composite: "mixed on site", labour: "labour",
+  plant: "plant", provisional: "provisional", fitting: "fitting", other: "other",
+};
 const kindBadge = (k: string) =>
   k === "composite" ? "badge-blue"
   : k === "material_supply" ? "badge-green"
   : k === "labour" || k === "plant" ? "badge-accent"
   : "badge-muted";
 
+// The recipe is a TIMELESS DOCUMENT: what one building takes, priced live.
+// Money lives on each building (its budget photo) — never frozen here.
 export default async function RecipeDetail({ params }: { params: { id: string } }) {
   const supabase = createClient();
   const { data: userRes } = await supabase.auth.getUser();
@@ -33,14 +41,13 @@ export default async function RecipeDetail({ params }: { params: { id: string } 
   const typeId = params.id;
   const [
     { data: type }, { data: stages }, { data: items }, { data: costs }, { data: materials },
-    { data: cost }, { data: workItems }, { data: takeoff }, { data: assemblies }, { data: priceRows },
+    { data: workItems }, { data: takeoff }, { data: assemblies }, { data: priceRows },
   ] = await Promise.all([
     supabase.from("building_types").select("id,name,category,version").eq("id", typeId).single(),
     supabase.from("type_stages").select("id,name,sequence").eq("building_type_id", typeId).order("sequence"),
     supabase.from("type_boq_items").select("id,stage_id,material_id,quantity,unit").eq("building_type_id", typeId),
     supabase.from("type_stage_costs").select("id,stage_id,category,amount").eq("building_type_id", typeId),
     supabase.from("materials_catalog").select("id,name,unit").order("name"),
-    supabase.rpc("fn_type_cost", { p_type: typeId }).single(),
     supabase.from("work_item_cost")
       .select("id,stage_id,element_name,section_name,boq_ref,description,quantity,unit,kind,assembly_id,boq_rate,is_priced,unit_cost_live,cost_live,boq_amount,est_cost,est_source")
       .eq("building_type_id", typeId).order("element_name"),
@@ -61,16 +68,12 @@ export default async function RecipeDetail({ params }: { params: { id: string } 
   for (const p of priceRows ?? [])
     if (prices[p.material_id] === undefined) prices[p.material_id] = Number(p.unit_price);
 
-  // Blended estimate: live build-up where one exists, the QS's own rate as the
-  // labelled fallback — complete from day one, converging to the true build-up.
-  const boqPricedTotal = wi.filter((r) => r.is_priced && r.boq_amount != null)
-    .reduce((a, r) => a + Number(r.boq_amount), 0);
+  // Two totals only: the QS's document (frozen at import) and today's cost.
+  const boqDocTotal = wi.filter((r) => r.boq_amount != null).reduce((a, r) => a + Number(r.boq_amount), 0);
   const estTotal = wi.filter((r) => r.est_cost != null).reduce((a, r) => a + Number(r.est_cost), 0);
   const buildUpTotal = wi.filter((r) => r.est_source === "build_up").reduce((a, r) => a + Number(r.est_cost), 0);
-  const qsTotal = wi.filter((r) => r.est_source === "boq_rate").reduce((a, r) => a + Number(r.est_cost), 0);
-  const noPriceCount = wi.filter((r) => r.est_source == null).length;
   const buildUpPct = estTotal > 0 ? Math.round((buildUpTotal / estTotal) * 100) : 0;
-  const qsPct = estTotal > 0 ? Math.round((qsTotal / estTotal) * 100) : 0;
+  const noPriceCount = wi.filter((r) => r.est_source == null).length;
 
   const byElement = new Map<string, WorkRow[]>();
   for (const r of wi) {
@@ -79,7 +82,7 @@ export default async function RecipeDetail({ params }: { params: { id: string } 
     byElement.get(el)!.push(r);
   }
 
-  // Take-off arrives per stage — aggregate to material for the summary table.
+  // Shopping list: take-off aggregated to material in stock units.
   const takeoffAgg = new Map<string, number>();
   for (const t of (takeoff ?? []) as TakeoffRow[])
     takeoffAgg.set(t.material_id, (takeoffAgg.get(t.material_id) ?? 0) + Number(t.qty_required));
@@ -87,54 +90,107 @@ export default async function RecipeDetail({ params }: { params: { id: string } 
     .map(([material_id, qty]) => ({ material_id, qty, m: matOf(material_id) }))
     .sort((a, b) => (a.m?.name ?? "").localeCompare(b.m?.name ?? ""));
 
-  // Assembly-proposal candidates: composite/other items with a QS rate but no
-  // build-up yet — attaching an assembly moves them from 'QS rate' to 'build-up'.
+  // Finish-setup work: mix candidates + lines still typed 'other'.
   const proposalCandidates = wi
     .filter((r) => (r.kind === "composite" || r.kind === "other") && r.assembly_id == null && r.boq_rate != null)
     .map((r) => ({
       id: r.id, description: r.description, mix_ratio: null,
       boq_rate: Number(r.boq_rate), unit: r.unit,
-      // Element/section headings often carry the grade the line itself omits.
       context: [r.element_name, r.section_name].filter(Boolean).join(" · ") || null,
     }));
+  const otherRows = wi.filter((r) => r.kind === "other");
+  const setupIncomplete = proposalCandidates.length > 0 || noPriceCount > 0 || otherRows.length > 0;
 
   return (
     <div className="space-y-6">
-      <RecipeEditor
-        type={type}
-        stages={stages ?? []}
-        items={items ?? []}
-        costs={costs ?? []}
-        materials={materials ?? []}
-        cost={(cost as { materials_cost: number; nonmaterial_cost: number; total_cost: number } | null) ?? { materials_cost: 0, nonmaterial_cost: 0, total_cost: 0 }}
-      />
+      {/* Header — the document and its two numbers. */}
+      <section className="card">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-white">{type.name}</h1>
+            <p className="mt-1 text-sm text-[#8b95a7]">{type.category ?? "—"} · version {type.version}</p>
+          </div>
+          {wi.length > 0 && (
+            <div className="flex flex-wrap gap-x-8 gap-y-3 text-right">
+              <div>
+                <div className="stat-label">QS document total (as at import)</div>
+                <div className="mt-1 font-mono text-xl font-semibold text-[#8b95a7]">{ngn(boqDocTotal)}</div>
+              </div>
+              <div>
+                <div className="stat-label">Cost to start today</div>
+                <div className="mt-1 font-mono text-2xl font-semibold text-white">{ngn(estTotal)}</div>
+                <div className="mt-0.5 text-xs text-emerald-300">{buildUpPct}% your prices</div>
+              </div>
+            </div>
+          )}
+        </div>
+        {wi.length > 0 && setupIncomplete && (
+          <p className="mt-4 flex items-start gap-1.5 rounded-xl border border-accent-500/25 bg-accent-500/[0.06] px-3.5 py-2.5 text-sm text-accent-300">
+            <IconAlert className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>
+              Some lines aren&apos;t fully set up ({proposalCandidates.length > 0 ? `${proposalCandidates.length} need a mix` : ""}
+              {proposalCandidates.length > 0 && (otherRows.length > 0 || noPriceCount > 0) ? " · " : ""}
+              {otherRows.length > 0 ? `${otherRows.length} need a type` : ""}
+              {otherRows.length > 0 && noPriceCount > 0 ? " · " : ""}
+              {noPriceCount > 0 ? `${noPriceCount} have no price` : ""}) —{" "}
+              <a href="#finish-setup" className="underline hover:text-white">finish setup below</a> to price more of the bill yourself.
+            </span>
+          </p>
+        )}
+      </section>
 
-      {/* True cost from work items — hidden until a BOQ has been confirmed as work items. */}
       {wi.length > 0 && (
         <>
+          {/* Finish setup — collapsed; the only place the machinery shows. */}
+          {setupIncomplete && (
+            <details id="finish-setup" className="card p-0 overflow-hidden">
+              <summary className="cursor-pointer px-5 py-4 text-sm font-semibold text-white">
+                Finish setup
+                <span className="ml-2 font-normal text-[#8b95a7]">— attach mixes and fix line types so more of the bill uses your prices</span>
+              </summary>
+              <div className="space-y-5 border-t border-white/[0.06] p-5">
+                {proposalCandidates.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-white">Mixes for lines done on site</h3>
+                    <AssemblyProposals
+                      orgId={orgId}
+                      mode="recipe"
+                      candidates={proposalCandidates}
+                      materials={materials ?? []}
+                      assemblies={assemblies ?? []}
+                      prices={prices}
+                    />
+                  </div>
+                )}
+                {otherRows.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-white">Lines that need a type</h3>
+                    <ul className="mt-2 space-y-2">
+                      {otherRows.map((r) => (
+                        <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white/[0.02] px-3 py-2">
+                          <span className="min-w-0 flex-1 text-[13px] leading-snug text-[#c7cedb]">{r.description}</span>
+                          <WorkItemKindSelect id={r.id} kind={r.kind} />
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {noPriceCount > 0 && (
+                  <p className="text-xs text-[#8b95a7]">
+                    {noPriceCount} line(s) have no price from any side — give their materials a price on the Price list, or attach a mix.
+                  </p>
+                )}
+              </div>
+            </details>
+          )}
+
+          {/* The Bill — the document itself, line by line. */}
           <section className="card p-0 overflow-hidden">
-            <div className="px-5 pt-5">
-              <h2 className="text-sm font-semibold text-white">True cost (work items)</h2>
+            <div className="px-5 pt-5 pb-1">
+              <h2 className="text-sm font-semibold text-white">The Bill</h2>
               <p className="mt-0.5 text-xs text-[#8b95a7]">
-                Blended estimate — your own build-up wherever one exists, the QS&apos;s rate as a labelled fallback (Rule 4: computed live, never stored).
+                Every line of the bill with the QS&apos;s rate and today&apos;s estimate side by side — green means it&apos;s priced from your own mixes and price list.
               </p>
-            </div>
-            <div className="flex flex-wrap items-end gap-x-8 gap-y-3 px-5 py-4">
-              <div>
-                <div className="stat-label">Estimate</div>
-                <div className="mt-1 font-mono text-2xl font-semibold text-white">{ngn(estTotal)}</div>
-              </div>
-              <div className="pb-0.5 text-sm">
-                <span className="text-emerald-300">{buildUpPct}% from your own build-up</span>
-                <span className="text-[#5b6473]"> · </span>
-                <span className="text-accent-300">{qsPct}% still on QS rates</span>
-                <span className="text-[#5b6473]"> · </span>
-                <span className={noPriceCount > 0 ? "text-red-300" : "text-[#8b95a7]"}>{noPriceCount} item{noPriceCount === 1 ? "" : "s"} with no price at all</span>
-              </div>
-              <div className="ml-auto text-right">
-                <div className="stat-label">BOQ priced total (reference)</div>
-                <div className="mt-1 font-mono text-lg font-semibold text-[#8b95a7]">{ngn(boqPricedTotal)}</div>
-              </div>
             </div>
             {[...byElement.entries()].map(([element, rows]) => (
               <div key={element} className="border-t border-white/[0.06]">
@@ -142,13 +198,13 @@ export default async function RecipeDetail({ params }: { params: { id: string } 
                 <div className="mt-2 overflow-x-auto">
                   <table className="table-base min-w-[880px]">
                     <thead>
-                      <tr><th className="min-w-[20rem]">Description</th><th>Kind</th><th className="text-right">Qty</th><th className="text-right">BOQ rate</th><th className="text-right">Estimate</th><th className="text-right">vs BOQ</th></tr>
+                      <tr><th className="min-w-[20rem]">Description</th><th>Kind</th><th className="text-right">Qty</th><th className="text-right">QS rate</th><th className="text-right">Estimate</th><th className="text-right">vs QS</th></tr>
                     </thead>
                     <tbody>
                       {rows.map((r) => {
                         const est = r.est_cost == null ? null : Number(r.est_cost);
                         const boq = r.boq_amount == null ? null : Number(r.boq_amount);
-                        // Variance is only meaningful once the estimate is our own build-up.
+                        // Variance is only meaningful once the estimate is your own price.
                         const diff = r.est_source === "build_up" && est != null && boq != null ? est - boq : null;
                         return (
                           <tr key={r.id}>
@@ -156,11 +212,7 @@ export default async function RecipeDetail({ params }: { params: { id: string } 
                               <div className="max-w-[26rem] whitespace-normal text-[13px] leading-snug">{r.description}</div>
                               {r.boq_ref && <div className="mt-0.5 text-[10px] text-[#5b6473]">{r.boq_ref}</div>}
                             </td>
-                            <td>
-                              {r.kind === "other"
-                                ? <WorkItemKindSelect id={r.id} kind={r.kind} />
-                                : <span className={`badge ${kindBadge(r.kind)}`}>{r.kind.replace("_", " ")}</span>}
-                            </td>
+                            <td><span className={`badge ${kindBadge(r.kind)}`}>{KIND_LABEL[r.kind] ?? r.kind.replace("_", " ")}</span></td>
                             <td className="text-right font-mono">
                               {r.quantity != null ? Number(r.quantity).toLocaleString("en-NG") : "—"} <span className="text-[#8b95a7]">{r.unit ?? ""}</span>
                             </td>
@@ -169,12 +221,12 @@ export default async function RecipeDetail({ params }: { params: { id: string } 
                               {est != null ? (
                                 <span className="inline-flex items-center gap-1.5">
                                   <span className={`badge ${r.est_source === "build_up" ? "badge-green" : "badge-accent"}`}>
-                                    {r.est_source === "build_up" ? "build-up" : "QS rate"}
+                                    {r.est_source === "build_up" ? "your price" : "QS price"}
                                   </span>
                                   <span className="font-mono text-white">{ngn(est)}</span>
                                 </span>
                               ) : (
-                                <span className="text-xs text-[#5b6473]">not yet costable</span>
+                                <span className="text-xs text-[#5b6473]">no price yet</span>
                               )}
                             </td>
                             <td className={`text-right font-mono ${diff == null ? "text-[#5b6473]" : diff > 0 ? "text-red-300" : "text-emerald-300"}`}>
@@ -190,35 +242,17 @@ export default async function RecipeDetail({ params }: { params: { id: string } 
             ))}
           </section>
 
-          {/* Assembly proposals — the normal flow: composite/other items still on a
-              QS rate get an assembly proposed (or an existing one matched). */}
-          {proposalCandidates.length > 0 && (
-            <section className="card">
-              <h2 className="text-sm font-semibold text-white">Assembly proposals</h2>
-              <p className="mt-1 text-xs text-[#8b95a7]">
-                {proposalCandidates.length} item(s) are still costed on the QS&apos;s all-in rate. Attach an assembly and they switch to your own build-up.
-              </p>
-              <AssemblyProposals
-                orgId={orgId}
-                mode="recipe"
-                candidates={proposalCandidates}
-                materials={materials ?? []}
-                assemblies={assemblies ?? []}
-                prices={prices}
-              />
-            </section>
-          )}
-
+          {/* Shopping list — everything one building needs, in the units you buy. */}
           <section className="card p-0 overflow-hidden">
             <div className="px-5 pt-5">
-              <h2 className="text-sm font-semibold text-white">Material take-off</h2>
+              <h2 className="text-sm font-semibold text-white">Shopping list</h2>
               <p className="mt-0.5 text-xs text-[#8b95a7]">
-                Raw materials one building needs — direct supply lines plus every assembly exploded (waste and formwork reuse applied), in stock units.
+                Everything one building needs — supply lines plus every mix broken into raw materials (waste and formwork reuse included), in the units you buy.
               </p>
             </div>
             <div className="mt-3 overflow-x-auto">
               <table className="table-base">
-                <thead><tr><th>Material</th><th className="text-right">Qty required</th></tr></thead>
+                <thead><tr><th>Material</th><th className="text-right">Qty needed</th></tr></thead>
                 <tbody>
                   {takeoffRows.map((t) => (
                     <tr key={t.material_id}>
@@ -229,7 +263,7 @@ export default async function RecipeDetail({ params }: { params: { id: string } 
                     </tr>
                   ))}
                   {takeoffRows.length === 0 && (
-                    <tr><td colSpan={2} className="py-5 text-center text-[#8b95a7]">Nothing convertible yet — map materials/assemblies and add unit conversions.</td></tr>
+                    <tr><td colSpan={2} className="py-5 text-center text-[#8b95a7]">Nothing convertible yet — attach mixes and add unit conversions.</td></tr>
                   )}
                 </tbody>
               </table>
@@ -237,6 +271,14 @@ export default async function RecipeDetail({ params }: { params: { id: string } 
           </section>
         </>
       )}
+
+      <RecipeEditor
+        type={type}
+        stages={stages ?? []}
+        items={items ?? []}
+        costs={costs ?? []}
+        materials={materials ?? []}
+      />
     </div>
   );
 }
