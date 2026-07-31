@@ -1,0 +1,34 @@
+<!--
+  SiteLens login email (email OTP / magic link).
+
+  WHY THIS EXISTS: the web console's login screen asks the user to type a 6-digit
+  code (apps/web/app/login/page.tsx → verifyOtp). Supabase's DEFAULT magic-link
+  email contains ONLY a click-to-sign-in link whose URL carries a long token_hash
+  and NO 6-digit code — so a founder reading the email sees a 40+ character string,
+  not the six digits the UI expects. This template surfaces the 6-digit {{ .Token }}
+  as the primary element, with the click-through link kept as a convenience fallback.
+
+  Registered in supabase/config.toml → [auth.email.template.magic_link].
+  Portable: applies locally via `supabase start`, and to cloud via `supabase config push`.
+-->
+<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; color: #0f172a;">
+  <h2 style="margin: 0 0 8px; font-size: 20px; font-weight: 600;">Sign in to SiteLens</h2>
+  <p style="margin: 0 0 20px; font-size: 14px; color: #475569;">
+    Enter this 6-digit code on the login screen. It expires in 60 minutes.
+  </p>
+
+  <div style="font-size: 34px; font-weight: 700; letter-spacing: 8px; text-align: center; padding: 18px 12px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 12px; color: #0f172a;">
+    {{ .Token }}
+  </div>
+
+  <p style="margin: 24px 0 4px; font-size: 13px; color: #64748b;">
+    Prefer one tap? You can sign in directly:
+  </p>
+  <p style="margin: 0 0 20px;">
+    <a href="{{ .ConfirmationURL }}" style="font-size: 14px; color: #2563eb; word-break: break-all;">Sign in to SiteLens</a>
+  </p>
+
+  <p style="margin: 0; font-size: 12px; color: #94a3b8;">
+    If you didn't request this, you can safely ignore this email.
+  </p>
+</div>

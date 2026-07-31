@@ -233,6 +233,14 @@ otp_length = 6
 # Number of seconds before the email OTP expires (defaults to 1 hour).
 otp_expiry = 3600
 
+# Login email template. The web console asks the user to type the 6-digit code, so the
+# email MUST surface {{ .Token }} (the 6-digit OTP). Supabase's default magic-link email
+# shows only a link with a long token_hash and no 6-digit code — this overrides it.
+# signInWithOtp on an existing user (shouldCreateUser:false) sends the magic_link template.
+[auth.email.template.magic_link]
+subject = "Your SiteLens login code"
+content_path = "./supabase/templates/magic_link.html"
+
 # Use a production-ready SMTP server
 # [auth.email.smtp]
 # enabled = true

@@ -105,6 +105,12 @@ cloud-move time. Append as we go. Region target: managed Supabase, London
 - [ ] R2 is OPTIONAL for the pilot (Supabase Storage works); swap later for zero-egress.
 - [ ] Execute processor DPAs/SCCs before real personal data (SEC-1); start WhatsApp BSP.
 - [ ] **Revoke the `sbp_…` access token** used for the push (exposed in chat) — STILL PENDING.
+- [ ] **Apply the login-email template to cloud.** Added `supabase/templates/magic_link.html`
+      + `[auth.email.template.magic_link]` in `config.toml` so the OTP email shows the 6-digit
+      `{{ .Token }}` (the default magic-link email showed only a long token_hash link — no
+      6-digit code, which is what the founder was seeing). Push it to the linked project with
+      `supabase config push` (or paste the template into Dashboard → Auth → Email Templates →
+      Magic Link). Verify a fresh login email now shows six digits.
 
 ### Provisioned (2026-07-28)
 - **Org #1: Vantara International** (id `10000000-…-0001`). Admin = the founder, login by
