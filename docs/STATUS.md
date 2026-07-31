@@ -5,6 +5,48 @@ session. Newest status at the top of each section._
 
 ---
 
+## ▶ NEXT SESSION — start here
+
+**State (2026-07-31, end of session): the entire BOQ→true-cost system is BUILT and
+LIVE on cloud** — 38 migrations, 26 test suites green (`bash scripts/verify_all.sh`),
+web on sitelens-eosin.vercel.app, commits e20fc08 → 248c430. Full detail in the dated
+sections below; judgment calls in DECISIONS #43–55.
+
+**The model (founder-approved, DECISIONS #55):**
+- **Recipe = timeless document**: two totals only (QS total as at import · cost to
+  start today), "the Bill" + "Shopping list", setup collapsed behind a finish-setup
+  notice. Builder vocabulary app-wide (Mixes, the Bill, Shopping list, your price /
+  QS price, mixed on site).
+- **Building = financial event**: budget "photograph" at start
+  (fn_snapshot_building_budget — idempotent, immune to later price moves), money card
+  (budget/spent/earned/forecast from building_money), "To finish this house" buy list
+  (building_finish_takeoff), Board dots (green/amber/gray).
+- **Import = one guided flow**: upload → live progress stepper (polls
+  boq_imports.progress) → Set up from this bill (stages / materials+prices / mixes,
+  incl. per-m² blockwork/render/screed derivation, ratio repair, implied labour =
+  BOQ rate − materials) → confirm → "Recipe ready" finish screen.
+
+**OPEN ITEMS (in priority order):**
+1. **Founder end-to-end test** of the restructure (recipe two-totals → building budget
+   photo → work-done → money card + buy list). Tune on feedback.
+2. **Purchase→price proposals (agreed direction, NOT built):** when a delivery (IN txn)
+   is logged with a unit_price differing from the current list price, propose the
+   update (human confirms) — closes the "estimate tracks the market by itself" loop.
+3. **Prices page format** (founder request, spec UNCLEAR): wants a specific layout +
+   a toggle to tabular view — the example/screenshot never arrived. Ask for it first.
+4. **Repo is PUBLIC on GitHub** — founder should flip to private (flagged twice).
+   Optional: ask GitHub support to GC the briefly-exposed client-bill blob
+   (removed from history 2026-07-30, old SHA may still be fetchable until GC).
+5. M8 pilot continues (21 days of real reports + break-it pass, docs/M8_PILOT.md).
+
+**Environment quirks that bite:** cloud DDL via MCP apply_migration (founder approves
+prompts); edge deploys `~/.local/bin/supabase functions deploy boq-extract-pdf
+--project-ref gwzpqnnwflwkcrowolgx --use-api`; verify via docker exec (this box can't
+kill containers); NEVER `git add docs/` blindly (client bills live there untracked —
+.gitignore now guards docs/*.xlsx).
+
+---
+
 ## 2026-07-30 (later) — BOQ TRUE-COST: Phases 0–3 + bootstrap BUILT & DEPLOYED
 
 **The entire BOQ true-cost build is live** (design: `docs/BOQ_TRUE_COST_DESIGN.md`,
