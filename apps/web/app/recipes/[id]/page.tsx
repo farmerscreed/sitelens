@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { activeOrgFromToken } from "@/lib/activeOrg";
 import { RecipeEditor } from "@/components/RecipeEditor";
 import { BulkKindAccept } from "@/components/BulkKindAccept";
+import { PriceMissingPanel } from "@/components/PriceMissingPanel";
 import { AssemblyProposals } from "@/components/AssemblyProposals";
 import { IconAlert } from "@/components/icons";
 
@@ -10,7 +11,7 @@ type WorkRow = {
   id: string; stage_id: string | null; element_name: string | null; section_name: string | null;
   boq_ref: string | null;
   description: string; quantity: string | null; unit: string | null; kind: string;
-  assembly_id: string | null; boq_rate: string | null; is_priced: boolean;
+  assembly_id: string | null; material_id: string | null; boq_rate: string | null; is_priced: boolean;
   unit_cost_live: string | null; cost_live: string | null; boq_amount: string | null;
   est_cost: string | null; est_source: "build_up" | "boq_rate" | null;
 };
@@ -49,7 +50,7 @@ export default async function RecipeDetail({ params }: { params: { id: string } 
     supabase.from("type_stage_costs").select("id,stage_id,category,amount").eq("building_type_id", typeId),
     supabase.from("materials_catalog").select("id,name,unit").order("name"),
     supabase.from("work_item_cost")
-      .select("id,stage_id,element_name,section_name,boq_ref,description,quantity,unit,kind,assembly_id,boq_rate,is_priced,unit_cost_live,cost_live,boq_amount,est_cost,est_source")
+      .select("id,stage_id,element_name,section_name,boq_ref,description,quantity,unit,kind,assembly_id,material_id,boq_rate,is_priced,unit_cost_live,cost_live,boq_amount,est_cost,est_source")
       .eq("building_type_id", typeId).order("element_name"),
     supabase.from("type_material_takeoff").select("material_id,qty_required").eq("building_type_id", typeId),
     supabase.from("assemblies").select("id,name,unit,ratio").order("name"),
@@ -99,6 +100,12 @@ export default async function RecipeDetail({ params }: { params: { id: string } 
       context: [r.element_name, r.section_name].filter(Boolean).join(" · ") || null,
     }));
   const otherRows = wi.filter((r) => r.kind === "other");
+  // Composite lines without a mix whose words may say steel/formwork — the old
+  // rule order filed them under concrete; BulkKindAccept offers the re-type.
+  const misTypeCandidates = wi.filter((r) => r.kind === "composite" && r.assembly_id == null);
+  const typeFixRows = [...otherRows, ...misTypeCandidates];
+  // Lines no estimate can reach — the give-them-a-price list.
+  const noPriceRows = wi.filter((r) => r.est_source == null);
   const setupIncomplete = proposalCandidates.length > 0 || noPriceCount > 0 || otherRows.length > 0;
 
   return (
@@ -149,13 +156,27 @@ export default async function RecipeDetail({ params }: { params: { id: string } 
                 <span className="ml-2 font-normal text-[#8b95a7]">— attach mixes and fix line types so more of the bill uses your prices</span>
               </summary>
               <div className="space-y-5 border-t border-white/[0.06] p-5">
-                {otherRows.length > 0 && (
+                {typeFixRows.length > 0 && (
                   <div>
                     <h3 className="text-sm font-semibold text-white">Lines that need a type</h3>
                     <BulkKindAccept
-                      items={otherRows.map((r) => ({
-                        id: r.id, description: r.description,
+                      items={typeFixRows.map((r) => ({
+                        id: r.id, kind: r.kind, description: r.description,
                         element_name: r.element_name, section_name: r.section_name,
+                      }))}
+                    />
+                  </div>
+                )}
+                {noPriceRows.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-white">Give these a price</h3>
+                    <PriceMissingPanel
+                      orgId={orgId}
+                      materials={materials ?? []}
+                      items={noPriceRows.map((r) => ({
+                        id: r.id, kind: r.kind, description: r.description,
+                        quantity: r.quantity != null ? Number(r.quantity) : null,
+                        unit: r.unit, material_id: r.material_id,
                       }))}
                     />
                   </div>
@@ -172,11 +193,6 @@ export default async function RecipeDetail({ params }: { params: { id: string } 
                       prices={prices}
                     />
                   </div>
-                )}
-                {noPriceCount > 0 && (
-                  <p className="text-xs text-[#8b95a7]">
-                    {noPriceCount} line(s) have no price from any side — give their materials a price on the Price list, or attach a mix.
-                  </p>
                 )}
               </div>
             </details>
