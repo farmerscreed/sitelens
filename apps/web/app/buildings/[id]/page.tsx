@@ -358,10 +358,19 @@ export default async function BuildingDetail({ params }: { params: { id: string 
 
           <LogWorkDoneForm
             buildingId={b.id}
-            workItems={ev.map((r) => ({
-              id: r.work_item_id, description: r.description,
-              qty_planned: r.qty_planned != null ? Number(r.qty_planned) : null, unit: r.unit,
-            }))}
+            workItems={ev
+              .map((r) => {
+                const st = r.stage_id ? (stages ?? []).find((s) => s.id === r.stage_id) : undefined;
+                return {
+                  id: r.work_item_id, description: r.description,
+                  qty_planned: r.qty_planned != null ? Number(r.qty_planned) : null, unit: r.unit,
+                  group: st?.name ?? r.element_name ?? "Unassigned",
+                  _seq: st?.sequence ?? 900,
+                };
+              })
+              .sort((a, b) => a._seq - b._seq || a.group.localeCompare(b.group) || a.description.localeCompare(b.description))
+              // eslint-disable-next-line @typescript-eslint/no-unused-vars
+              .map(({ _seq, ...w }) => w)}
           />
         </>
       )}

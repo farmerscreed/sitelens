@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { IconCheck, IconAlert } from "@/components/icons";
 
-type WorkItem = { id: string; description: string; qty_planned: number | null; unit: string | null };
+type WorkItem = { id: string; description: string; qty_planned: number | null; unit: string | null; group: string };
 
 // Log cumulative work done on a building (qty as of today, not an increment).
 // Client-generated idempotency_key mirrors the offline path — safe to retry.
@@ -19,6 +19,15 @@ export function LogWorkDoneForm({ buildingId, workItems }: { buildingId: string;
   const [msg, setMsg] = useState<{ ok: boolean; t: string } | null>(null);
 
   const sel = workItems.find((w) => w.id === workItem);
+
+  // Group the dropdown by stage (first-seen order; items arrive pre-sorted by
+  // stage sequence) so a task is easy to find under its stage.
+  const groups: { label: string; items: WorkItem[] }[] = [];
+  for (const w of workItems) {
+    let g = groups.find((x) => x.label === w.group);
+    if (!g) { g = { label: w.group, items: [] }; groups.push(g); }
+    g.items.push(w);
+  }
 
   async function submit() {
     setBusy(true); setMsg(null);
@@ -45,10 +54,14 @@ export function LogWorkDoneForm({ buildingId, workItems }: { buildingId: string;
         <div className="lg:col-span-2">
           <label className="label">Work item</label>
           <select className="select" value={workItem} onChange={(e) => setWorkItem(e.target.value)}>
-            {workItems.map((w) => (
-              <option key={w.id} value={w.id}>
-                {w.description.length > 70 ? `${w.description.slice(0, 70)}…` : w.description}
-              </option>
+            {groups.map((g) => (
+              <optgroup key={g.label} label={g.label}>
+                {g.items.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.description.length > 70 ? `${w.description.slice(0, 70)}…` : w.description}
+                  </option>
+                ))}
+              </optgroup>
             ))}
           </select>
         </div>
