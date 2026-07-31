@@ -377,3 +377,13 @@ logged here so the founder can review drift. Newest at the bottom.
     if wrong". Never silently corrected. Bare concrete lines borrow the grade from
     their element/section context, labelled as such, before falling back to
     "custom, no breakdown".
+55. **Recipe = timeless document; building = financial event (founder model, 2026-07-31).**
+    The recipe page shows exactly two totals — the QS document total (as at import)
+    and "cost to start today" (live) — with all setup collapsed behind a finish-setup
+    notice. Each building takes an idempotent budget "photograph"
+    (`building_budgets` via `fn_snapshot_building_budget`) at start; later price
+    moves re-price the recipe but never rewrite a running building's budget. All
+    comparison lives per building (`building_money`: budget/spent/earned/forecast)
+    plus the focus-and-finish buy list (`building_finish_takeoff` = remaining work →
+    mixes → stock units − store). Builder vocabulary app-wide: Mixes, the Bill,
+    Shopping list, your price / QS price.

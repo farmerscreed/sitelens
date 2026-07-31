@@ -43,6 +43,12 @@ assembly reuse, implied labour = BOQ rate − materials as the negotiating basel
 per-m² derivation for blockwork/render/screed (DECISIONS #53), mangled-ratio repair +
 grade-from-context (#54). 37 migrations, 25 suites.
 
+**2026-07-31 — recipe-as-document restructure (DECISIONS #55):** building_budgets
+photo + building_money + building_finish_takeoff (38 migrations, 26 suites); recipe
+page = clean document (2 totals, the Bill, Shopping list, setup collapsed); building
+page = money card + "To finish this house" buy list; Board dots; import finish screen
+("Recipe ready"). All on cloud.
+
 **Open:** founder re-tests the full flow on sitelens-eosin.vercel.app (upload → stepper
 → bootstrap → confirm → recipe true-cost); tune AI enrichment prompts on feedback.
 Latent fix shipped en route: `materials_catalog.id` had no DEFAULT (new-material
