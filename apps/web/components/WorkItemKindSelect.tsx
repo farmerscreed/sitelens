@@ -18,6 +18,7 @@ export function WorkItemKindSelect({ id, kind }: { id: string; kind: string }) {
     setBusy(true); setErr(null);
     const { error } = await supabase.rpc("fn_update_work_item", {
       p_work_item: id, p_kind: k, p_assembly: null, p_material: null,
+      p_clear_material: false, p_clear_assembly: false,
     });
     setBusy(false);
     if (error) setErr(error.message);

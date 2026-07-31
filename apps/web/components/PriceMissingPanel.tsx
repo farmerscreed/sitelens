@@ -9,7 +9,14 @@ type Item = {
   id: string; kind: string; description: string;
   quantity: number | null; unit: string | null; material_id: string | null;
 };
-type Draft = { matSel: string; newName: string; newUnit: string; price: string; rate: string };
+type Draft = {
+  modeSel: "material" | "rate";
+  matSel: string; newName: string; newUnit: string; price: string; rate: string;
+};
+
+const normUnit = (u: string | null | undefined) => (u ?? "").replace(/\s/g, "").toLowerCase();
+// Length/area measures default to the rate path (a per-m² material price rarely exists).
+const RATE_UNITS = new Set(["m", "m2", "m²", "sqm", "lm"]);
 
 // Best catalog guess for a bill line: the material whose name-words appear most
 // in the description (display convenience only — the human picks).
@@ -24,24 +31,27 @@ function bestMatch(materials: Material[], description: string): Material | null 
   return best;
 }
 
-// "K items have no price — give each one": the missing write-path UI for lines
-// no estimate can reach. Supply/fittings get a catalog material + a price
-// (fn_upsert_material → fn_set_material_price → fn_update_work_item); labour/
-// plant get an agreed rate stored as a labour-only mix (fn_upsert_assembly →
-// fn_update_work_item). All server functions, all human-entered (Rules 1 & 3).
+// "K items have no price — give each one." Two ways per line: price a material
+// (supply/fittings — guarded so a bag-priced material can never be applied to a
+// m²-measured line again) or take an agreed rate per unit (any kind → labour-only
+// 'Rate: …' mix, kind set to labour, stray material cleared). All server
+// functions, all human-entered (Rules 1 & 3). Rows that already carry a material
+// but still price to nothing land here too, with a detach button.
 export function PriceMissingPanel({ orgId, materials, items }: {
   orgId: string; materials: Material[]; items: Item[];
 }) {
   const router = useRouter();
   const supabase = createClient();
   const [busy, setBusy] = useState(false);
+  const [applyingId, setApplyingId] = useState<string | null>(null);
+  const [applied, setApplied] = useState<Record<string, string>>({});
   const [err, setErr] = useState<string | null>(null);
-  const [ok, setOk] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, Draft>>(() => {
     const d: Record<string, Draft> = {};
     for (const it of items) {
       const match = it.material_id ? materials.find((m) => m.id === it.material_id) ?? null : bestMatch(materials, it.description);
       d[it.id] = {
+        modeSel: it.kind === "labour" || it.kind === "plant" || RATE_UNITS.has(normUnit(it.unit)) ? "rate" : "material",
         matSel: match?.id ?? "__new__",
         newName: it.description.slice(0, 40).trim(),
         newUnit: it.unit ?? "",
@@ -53,36 +63,30 @@ export function PriceMissingPanel({ orgId, materials, items }: {
   const patch = (id: string, p: Partial<Draft>) =>
     setDrafts((s) => ({ ...s, [id]: { ...s[id], ...p } }));
 
-  const isMaterialKind = (k: string) => k === "fitting" || k === "material_supply";
-  const isRateKind = (k: string) => k === "labour" || k === "plant";
-  const filled = (it: Item) => {
-    const d = drafts[it.id];
-    if (!d) return false;
-    if (isMaterialKind(it.kind)) return d.price !== "" && Number(d.price) > 0 && (d.matSel !== "__new__" || (d.newName.trim() !== "" && d.newUnit.trim() !== ""));
-    if (isRateKind(it.kind)) return d.rate !== "" && Number(d.rate) > 0;
-    return false;
+  const canPriceMaterial = (k: string) => k === "fitting" || k === "material_supply";
+  const selectedMat = (d: Draft) => (d.matSel === "__new__" ? null : materials.find((m) => m.id === d.matSel) ?? null);
+  // The guard that stops the silent nothing: an existing material priced per bag
+  // can't be applied to a line measured in m².
+  const unitMismatch = (it: Item, d: Draft): Material | null => {
+    if (d.modeSel !== "material") return null;
+    const m = selectedMat(d);
+    if (!m || !it.unit) return null;
+    return normUnit(m.unit) === normUnit(it.unit) ? null : m;
   };
 
-  async function applyOne(it: Item) {
+  const filled = (it: Item) => {
     const d = drafts[it.id];
-    if (isMaterialKind(it.kind)) {
-      let mat = d.matSel;
-      if (mat === "__new__") {
-        const { data, error } = await supabase.rpc("fn_upsert_material", {
-          p_org: orgId, p_name: d.newName.trim(), p_unit: d.newUnit.trim() || it.unit || "unit",
-        });
-        if (error) throw new Error(`creating "${d.newName}": ${error.message}`);
-        mat = data as string;
-      }
-      const { error: pErr } = await supabase.rpc("fn_set_material_price", {
-        p_org: orgId, p_material: mat, p_unit_price: Number(d.price),
-      });
-      if (pErr) throw new Error(pErr.message);
-      const { error: uErr } = await supabase.rpc("fn_update_work_item", {
-        p_work_item: it.id, p_kind: null, p_assembly: null, p_material: mat,
-      });
-      if (uErr) throw new Error(uErr.message);
-    } else if (isRateKind(it.kind)) {
+    if (!d || applied[it.id]) return false;
+    if (d.modeSel === "rate") return d.rate !== "" && Number(d.rate) > 0;
+    if (!canPriceMaterial(it.kind)) return false;
+    if (unitMismatch(it, d)) return false;
+    return d.price !== "" && Number(d.price) > 0 && (d.matSel !== "__new__" || (d.newName.trim() !== "" && d.newUnit.trim() !== ""));
+  };
+
+  // Returns the success line for the row ("₦X per unit").
+  async function applyOne(it: Item): Promise<string> {
+    const d = drafts[it.id];
+    if (d.modeSel === "rate") {
       const { data: aid, error: aErr } = await supabase.rpc("fn_upsert_assembly", {
         p_org: orgId, p_name: `Rate: ${it.description.slice(0, 40).trim()}`,
         p_unit: it.unit ?? "unit", p_kind: "custom", p_ratio: null, p_dry_factor: 1,
@@ -90,47 +94,101 @@ export function PriceMissingPanel({ orgId, materials, items }: {
       });
       if (aErr) throw new Error(aErr.message);
       const { error: uErr } = await supabase.rpc("fn_update_work_item", {
-        p_work_item: it.id, p_kind: null, p_assembly: aid as string, p_material: null,
+        p_work_item: it.id, p_kind: "labour", p_assembly: aid as string, p_material: null,
+        p_clear_material: true, p_clear_assembly: false,
       });
       if (uErr) throw new Error(uErr.message);
+      return `₦${Number(d.rate).toLocaleString("en-NG")} per ${it.unit ?? "unit"}`;
     }
+    let mat = d.matSel;
+    let unit = selectedMat(d)?.unit ?? (d.newUnit.trim() || it.unit || "unit");
+    if (mat === "__new__") {
+      unit = d.newUnit.trim() || it.unit || "unit";
+      const { data, error } = await supabase.rpc("fn_upsert_material", {
+        p_org: orgId, p_name: d.newName.trim(), p_unit: unit,
+      });
+      if (error) throw new Error(`creating "${d.newName}": ${error.message}`);
+      mat = data as string;
+    }
+    const { error: pErr } = await supabase.rpc("fn_set_material_price", {
+      p_org: orgId, p_material: mat, p_unit_price: Number(d.price),
+    });
+    if (pErr) throw new Error(pErr.message);
+    const { error: uErr } = await supabase.rpc("fn_update_work_item", {
+      p_work_item: it.id, p_kind: null, p_assembly: null, p_material: mat,
+      p_clear_material: false, p_clear_assembly: false,
+    });
+    if (uErr) throw new Error(uErr.message);
+    return `₦${Number(d.price).toLocaleString("en-NG")} per ${unit}`;
   }
 
   async function apply(it: Item) {
-    setBusy(true); setErr(null); setOk(null);
-    try { await applyOne(it); setOk("Price saved."); router.refresh(); }
-    catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
-    finally { setBusy(false); }
-  }
-  async function applyAllFilled() {
-    setBusy(true); setErr(null); setOk(null);
-    let n = 0;
+    setBusy(true); setApplyingId(it.id); setErr(null);
     try {
-      for (const it of items) if (filled(it)) { await applyOne(it); n++; }
-      setOk(`${n} price(s) saved.`);
+      const line = await applyOne(it);
+      setApplied((s) => ({ ...s, [it.id]: line }));
       router.refresh();
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
-      if (n > 0) router.refresh();
     } finally {
-      setBusy(false);
+      setBusy(false); setApplyingId(null);
     }
+  }
+  async function applyAllFilled() {
+    setBusy(true); setErr(null);
+    try {
+      for (const it of items) {
+        if (!filled(it)) continue;
+        setApplyingId(it.id);
+        const line = await applyOne(it);
+        setApplied((s) => ({ ...s, [it.id]: line }));
+      }
+      router.refresh();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+      router.refresh(); // whatever already applied should land
+    } finally {
+      setBusy(false); setApplyingId(null);
+    }
+  }
+  async function detach(it: Item) {
+    setBusy(true); setApplyingId(it.id); setErr(null);
+    const { error } = await supabase.rpc("fn_update_work_item", {
+      p_work_item: it.id, p_kind: null, p_assembly: null, p_material: null,
+      p_clear_material: true, p_clear_assembly: false,
+    });
+    setBusy(false); setApplyingId(null);
+    if (error) setErr(error.message);
+    else router.refresh();
   }
 
   if (items.length === 0) return null;
   const filledCount = items.filter(filled).length;
+  const spinner = <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />;
 
   return (
     <div className="mt-2 space-y-3">
       <p className="text-sm text-[#c7cedb]">
         {items.length} item{items.length === 1 ? "" : "s"} have no price — give each one.
       </p>
-      {ok && <p className="flex items-center gap-1.5 text-sm text-emerald-300"><IconCheck className="h-4 w-4" />{ok}</p>}
       {err && <p className="flex items-center gap-1.5 text-sm text-red-300"><IconAlert className="h-4 w-4" />{err}</p>}
 
       <ul className="space-y-2">
         {items.map((it) => {
           const d = drafts[it.id];
+          if (!d) return null;
+          if (applied[it.id]) {
+            // Instant feedback — the row is done (the refresh will clear it from the list).
+            return (
+              <li key={it.id} className="flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/[0.06] px-3 py-2.5 text-sm text-emerald-300">
+                <IconCheck className="h-4 w-4 shrink-0" />
+                <span className="min-w-0 flex-1 truncate">{it.description}</span>
+                <span className="shrink-0 font-mono">priced — {applied[it.id]}</span>
+              </li>
+            );
+          }
+          const attached = it.material_id ? materials.find((m) => m.id === it.material_id) ?? null : null;
+          const mismatch = unitMismatch(it, d);
           return (
             <li key={it.id} className="rounded-lg bg-white/[0.02] px-3 py-2.5">
               <p className="text-[13px] leading-snug text-[#c7cedb]">
@@ -142,42 +200,82 @@ export function PriceMissingPanel({ orgId, materials, items }: {
                 )}
               </p>
 
-              {isMaterialKind(it.kind) && d && (
-                <div className="mt-2 flex flex-wrap items-end gap-2">
-                  <div className="min-w-[14rem] flex-1">
-                    <label className="label">Material</label>
-                    <select className="select py-1.5" value={d.matSel} disabled={busy}
-                      onChange={(e) => patch(it.id, { matSel: e.target.value })}>
-                      <option value="__new__">+ create new: {d.newName || "…"}</option>
-                      {materials.map((m) => <option key={m.id} value={m.id}>{m.name} (per {m.unit})</option>)}
-                    </select>
-                  </div>
-                  {d.matSel === "__new__" && (
-                    <>
-                      <div className="min-w-[12rem]">
-                        <label className="label">New material name</label>
-                        <input className="input py-1.5" value={d.newName} disabled={busy}
-                          onChange={(e) => patch(it.id, { newName: e.target.value })} />
-                      </div>
-                      <div className="w-20">
-                        <label className="label">Unit</label>
-                        <input className="input py-1.5" placeholder={it.unit ?? "unit"} value={d.newUnit} disabled={busy}
-                          onChange={(e) => patch(it.id, { newUnit: e.target.value })} />
-                      </div>
-                    </>
-                  )}
-                  <div className="w-32">
-                    <label className="label">Price (₦ per unit)</label>
-                    <input type="number" min="0" className="input py-1.5" placeholder="0" value={d.price} disabled={busy}
-                      onChange={(e) => patch(it.id, { price: e.target.value })} />
-                  </div>
-                  <button className="btn btn-primary px-3 py-1.5 text-xs" disabled={busy || !filled(it)} onClick={() => apply(it)}>
-                    Apply
+              {/* A material is attached but still prices to nothing — say so, offer detach. */}
+              {attached && (
+                <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-accent-500/25 bg-accent-500/[0.06] px-3 py-2 text-xs text-accent-300">
+                  <IconAlert className="h-3.5 w-3.5 shrink-0" />
+                  <span className="min-w-0 flex-1">
+                    &quot;{attached.name}&quot; is attached but the line still has no cost
+                    {it.unit && normUnit(attached.unit) !== normUnit(it.unit) ? ` (it's priced per ${attached.unit}, the line is measured in ${it.unit})` : ""} — fix it below or detach.
+                  </span>
+                  <button className="btn btn-ghost px-2 py-1 text-xs" disabled={busy} onClick={() => detach(it)}>
+                    {applyingId === it.id ? spinner : "detach material"}
                   </button>
                 </div>
               )}
 
-              {isRateKind(it.kind) && d && (
+              {/* Two ways to a price — material or agreed rate (works for any kind). */}
+              <div className="mt-2 grid max-w-xs grid-cols-2 gap-1 rounded-xl border border-white/[0.08] bg-white/[0.02] p-1">
+                {(["material", "rate"] as const).map((mo) => (
+                  <button key={mo} type="button" disabled={busy}
+                    onClick={() => patch(it.id, { modeSel: mo })}
+                    className={`rounded-lg px-2 py-1 text-xs font-medium transition ${
+                      d.modeSel === mo ? "bg-accent-sheen text-ink-950 shadow" : "text-[#8b95a7] hover:text-white"}`}>
+                    {mo === "material" ? "Price a material" : `Agreed rate per ${it.unit ?? "unit"}`}
+                  </button>
+                ))}
+              </div>
+
+              {d.modeSel === "material" && (
+                canPriceMaterial(it.kind) ? (
+                  <div className="mt-2 flex flex-wrap items-end gap-2">
+                    <div className="min-w-[14rem] flex-1">
+                      <label className="label">Material</label>
+                      <select className={`select py-1.5 ${mismatch ? "border-accent-500/50" : ""}`} value={d.matSel} disabled={busy}
+                        onChange={(e) => patch(it.id, { matSel: e.target.value })}>
+                        <option value="__new__">+ create new: {d.newName || "…"} (per {it.unit ?? (d.newUnit || "unit")})</option>
+                        {materials.map((m) => <option key={m.id} value={m.id}>{m.name} (per {m.unit})</option>)}
+                      </select>
+                    </div>
+                    {d.matSel === "__new__" && (
+                      <>
+                        <div className="min-w-[12rem]">
+                          <label className="label">New material name</label>
+                          <input className="input py-1.5" value={d.newName} disabled={busy}
+                            onChange={(e) => patch(it.id, { newName: e.target.value })} />
+                        </div>
+                        <div className="w-20">
+                          <label className="label">Unit</label>
+                          <input className="input py-1.5" placeholder={it.unit ?? "unit"} value={d.newUnit} disabled={busy}
+                            onChange={(e) => patch(it.id, { newUnit: e.target.value })} />
+                        </div>
+                      </>
+                    )}
+                    <div className="w-32">
+                      <label className="label">Price (₦ per unit)</label>
+                      <input type="number" min="0" className="input py-1.5" placeholder="0" value={d.price} disabled={busy}
+                        onChange={(e) => patch(it.id, { price: e.target.value })} />
+                    </div>
+                    <button className="btn btn-primary px-3 py-1.5 text-xs" disabled={busy || !filled(it)} onClick={() => apply(it)}>
+                      {applyingId === it.id ? spinner : "Apply"}
+                    </button>
+                    {mismatch && (
+                      <p className="basis-full text-xs text-accent-300">
+                        <IconAlert className="mr-1 inline h-3.5 w-3.5" />
+                        this material is priced per {mismatch.unit} but the line is measured in {it.unit} — pick a matching one, create new (per {it.unit}), or use the rate option.
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="mt-2 text-xs text-[#8b95a7]">
+                    {it.kind === "composite"
+                      ? "needs a Mix — see Mixes below (or take an agreed rate)"
+                      : "this line can't be priced by material — use the agreed-rate option"}
+                  </p>
+                )
+              )}
+
+              {d.modeSel === "rate" && (
                 <div className="mt-2 flex flex-wrap items-end gap-2">
                   <div className="w-44">
                     <label className="label">Agreed rate (₦ per {it.unit ?? "unit"})</label>
@@ -185,15 +283,10 @@ export function PriceMissingPanel({ orgId, materials, items }: {
                       onChange={(e) => patch(it.id, { rate: e.target.value })} />
                   </div>
                   <button className="btn btn-primary px-3 py-1.5 text-xs" disabled={busy || !filled(it)} onClick={() => apply(it)}>
-                    Apply
+                    {applyingId === it.id ? spinner : "Apply"}
                   </button>
+                  <span className="text-xs text-[#5b6473]">all-in ₦/{it.unit ?? "unit"} — stored as a &quot;Rate:&quot; mix</span>
                 </div>
-              )}
-
-              {!isMaterialKind(it.kind) && !isRateKind(it.kind) && (
-                <p className="mt-1 text-xs text-[#8b95a7]">
-                  {it.kind === "composite" ? "needs a Mix — see Mixes below" : "set its type first (above), then the price input appears here"}
-                </p>
               )}
             </li>
           );
