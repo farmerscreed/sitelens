@@ -12,6 +12,7 @@ DECLARE
   user_a uuid := 'a1111111-1111-1111-1111-111111111111';
   user_b uuid := 'b2222222-2222-2222-2222-222222222222';
   asm uuid; typ uuid; stg uuid; imp uuid; row1 uuid; wi uuid;
+  imp2 uuid; row2 uuid; wi2 uuid; src text;
   ph uuid; ba uuid; bld uuid; n int; q numeric; fails int := 0;
 BEGIN
   PERFORM set_config('request.jwt.claims', jsonb_build_object('sub', user_a)::text, true);
@@ -60,6 +61,28 @@ BEGIN
   SELECT earned_value INTO q FROM building_work_ev WHERE building_id = bld AND work_item_id = wi;
   IF q <> 429000 THEN RAISE WARNING 'latest entry not used (EV=%)', q; fails:=fails+1; END IF;
 
+  -- ── Blended estimate (founder pilot fix 2026-07-31): a QS-rate-only line (no
+  -- build-up attached) still carries planned/earned value from its BOQ rate,
+  -- labelled boq_rate — matching the budget photo and the recipe, not dropped. ──
+  imp2 := fn_create_boq_import(org_a, typ, 'xlsx');
+  PERFORM fn_stage_boq_rows_v2(imp2, '[{"raw_text":"Soil pipes (needs a mix)","parsed_qty":"8","parsed_unit":"m3","parsed_rate":"50000","row_kind":"item","suggested_kind":"composite"}]');
+  SELECT id INTO row2 FROM boq_import_rows WHERE import_id = imp2;
+  PERFORM fn_confirm_boq_import_v2(imp2, jsonb_build_array(
+    jsonb_build_object('row_id', row2, 'stage_id', stg, 'kind', 'composite')));  -- no assembly → no build-up
+  SELECT id INTO wi2 FROM type_work_items WHERE building_type_id = typ AND id <> wi;
+  PERFORM fn_update_work_item(wi2, NULL, NULL, NULL, false, false, true);        -- force in-scope
+
+  SELECT unit_cost_live, planned_value, est_source INTO q, n, src
+    FROM building_work_ev WHERE building_id = bld AND work_item_id = wi2;
+  IF q   <> 50000    THEN RAISE WARNING 'fallback unit_cost_live=% (expected 50000 QS rate)', q; fails:=fails+1; END IF;
+  IF n   <> 400000   THEN RAISE WARNING 'fallback planned_value=% (expected 400000)', n; fails:=fails+1; END IF;
+  IF src <> 'boq_rate' THEN RAISE WARNING 'fallback est_source=% (expected boq_rate)', src; fails:=fails+1; END IF;
+
+  -- Earned value blends too: 2 of 8 done → 2 × 50,000 = 100,000.
+  PERFORM fn_log_work_done(bld, wi2, 2, 'idem-ev-fb');
+  SELECT earned_value INTO q FROM building_work_ev WHERE building_id = bld AND work_item_id = wi2;
+  IF q <> 100000 THEN RAISE WARNING 'fallback earned_value=% (expected 100000)', q; fails:=fails+1; END IF;
+
   -- Guard: >150% of designed quantity rejected.
   BEGIN
     PERFORM fn_log_work_done(bld, wi, 16, 'idem-ev-3');
@@ -77,7 +100,7 @@ BEGIN
 
   PERFORM set_config('request.jwt.claims', NULL, true);
   IF fails > 0 THEN RAISE EXCEPTION 'WORKDONE-EV FAILED: % assertion(s)', fails; END IF;
-  RAISE NOTICE 'WORKDONE-EV PASS: dated labour rate live; EV latest-cumulative × live cost; idempotent; quantity guard; authz.';
+  RAISE NOTICE 'WORKDONE-EV PASS: dated labour rate live; EV latest-cumulative × live cost; QS-rate fallback blends (planned/earned labelled boq_rate); idempotent; quantity guard; authz.';
 END $$;
 ROLLBACK;
 SELECT 'Work-done + earned value: PASS' AS result;

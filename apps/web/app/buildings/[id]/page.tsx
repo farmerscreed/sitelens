@@ -21,6 +21,7 @@ type EvRow = {
   description: string; kind: string; qty_planned: string | null; unit: string | null;
   qty_done: string | null; unit_cost_live: string | null;
   planned_value: string | null; earned_value: string | null; boq_amount: string | null;
+  est_source: string | null;
 };
 
 const ngn = (n: number | null | undefined) =>
@@ -41,7 +42,7 @@ export default async function BuildingDetail({ params }: { params: { id: string 
     supabase.from("materials_catalog").select("id,name,unit"),
     supabase.from("building_req_vs_actual").select("material_id,required,consumed,overrun").eq("building_id", b.id),
     supabase.from("building_work_ev")
-      .select("work_item_id,stage_id,element_name,description,kind,qty_planned,unit,qty_done,unit_cost_live,planned_value,earned_value,boq_amount")
+      .select("work_item_id,stage_id,element_name,description,kind,qty_planned,unit,qty_done,unit_cost_live,planned_value,earned_value,boq_amount,est_source")
       .eq("building_id", b.id).order("element_name"),
     supabase.from("building_money")
       .select("budget,budget_date,variations_total,spent,earned,remaining,forecast")
@@ -307,6 +308,7 @@ export default async function BuildingDetail({ params }: { params: { id: string 
               <h2 className="text-sm font-semibold text-white">Progress (work done)</h2>
               <p className="mt-0.5 text-xs text-[#8b95a7]">
                 Earned = latest cumulative qty done × live unit cost — what the work completed is worth at today&apos;s prices.
+                Lines you haven&apos;t built up yet are valued at the QS&apos;s BOQ rate (tagged <span className="text-accent-300">QS rate</span>), same as the recipe and budget.
               </p>
             </div>
             <div className="grid gap-4 px-5 py-4 sm:grid-cols-3">
@@ -333,7 +335,12 @@ export default async function BuildingDetail({ params }: { params: { id: string 
                     <tr key={r.work_item_id}>
                       <td className="text-white">
                         <div className="max-w-[26rem] whitespace-normal text-[13px] leading-snug">{r.description}</div>
-                        <div className="mt-0.5 text-[10px] text-[#5b6473]">{r.element_name ?? "—"} · {r.kind.replace("_", " ")}</div>
+                        <div className="mt-0.5 text-[10px] text-[#5b6473]">
+                          {r.element_name ?? "—"} · {r.kind.replace("_", " ")}
+                          {r.est_source === "boq_rate" && (
+                            <span className="ml-1.5 rounded bg-white/[0.06] px-1 py-0.5 text-[9px] font-medium text-accent-300" title="Priced from the QS's BOQ rate until you attach your own mix">QS rate</span>
+                          )}
+                        </div>
                       </td>
                       <td className="text-right font-mono">
                         {r.qty_done != null ? Number(r.qty_done).toLocaleString("en-NG") : "0"}
