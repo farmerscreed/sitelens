@@ -119,7 +119,7 @@ export function PriceMissingPanel({ orgId, materials, items, pricedLines = [] }:
       if (aErr) throw new Error(aErr.message);
       const { error: uErr } = await supabase.rpc("fn_update_work_item", {
         p_work_item: it.id, p_kind: "labour", p_assembly: aid as string, p_material: null,
-        p_clear_material: true, p_clear_assembly: false,
+        p_clear_material: true, p_clear_assembly: false, p_in_scope: null,
       });
       if (uErr) throw new Error(uErr.message);
       return `₦${Number(d.rate).toLocaleString("en-NG")} per ${it.unit ?? "unit"}`;
@@ -140,7 +140,7 @@ export function PriceMissingPanel({ orgId, materials, items, pricedLines = [] }:
     if (pErr) throw new Error(pErr.message);
     const { error: uErr } = await supabase.rpc("fn_update_work_item", {
       p_work_item: it.id, p_kind: null, p_assembly: null, p_material: mat,
-      p_clear_material: false, p_clear_assembly: false,
+      p_clear_material: false, p_clear_assembly: false, p_in_scope: null,
     });
     if (uErr) throw new Error(uErr.message);
     return `₦${Number(d.price).toLocaleString("en-NG")} per ${unit}`;
@@ -179,7 +179,7 @@ export function PriceMissingPanel({ orgId, materials, items, pricedLines = [] }:
     setBusy(true); setApplyingId(it.id); setErr(null);
     const { error } = await supabase.rpc("fn_update_work_item", {
       p_work_item: it.id, p_kind: null, p_assembly: null, p_material: null,
-      p_clear_material: true, p_clear_assembly: false,
+      p_clear_material: true, p_clear_assembly: false, p_in_scope: null,
     });
     setBusy(false); setApplyingId(null);
     if (error) setErr(error.message);

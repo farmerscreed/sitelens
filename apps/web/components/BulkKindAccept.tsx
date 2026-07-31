@@ -80,7 +80,7 @@ export function BulkKindAccept({ items }: { items: Item[] }) {
       for (const { it, kind } of [...suggested, ...misTyped]) {
         const { error } = await supabase.rpc("fn_update_work_item", {
           p_work_item: it.id, p_kind: kind, p_assembly: null, p_material: null,
-          p_clear_material: false, p_clear_assembly: false,
+          p_clear_material: false, p_clear_assembly: false, p_in_scope: null,
         });
         if (error) throw new Error(error.message);
       }

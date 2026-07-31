@@ -354,7 +354,7 @@ export function AssemblyProposals({
           for (const r of g.rows) {
             const { error } = await supabase.rpc("fn_update_work_item", {
               p_work_item: r.id, p_kind: "composite", p_assembly: assemblyId, p_material: null,
-              p_clear_material: false, p_clear_assembly: false,
+              p_clear_material: false, p_clear_assembly: false, p_in_scope: null,
             });
             if (error) throw new Error(error.message);
           }

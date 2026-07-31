@@ -4,13 +4,16 @@ import { createClient } from "@/lib/supabase/server";
 import { CompleteStageButton } from "@/components/CompleteStageButton";
 import { LogWorkDoneForm } from "@/components/LogWorkDoneForm";
 import { SnapshotBudgetButton } from "@/components/SnapshotBudgetButton";
+import { VariationAdder } from "@/components/VariationAdder";
 import { IconChevron, IconCheck, IconAlert } from "@/components/icons";
 
 type Money = {
-  budget: string | null; budget_date: string | null;
+  budget: string | null; budget_date: string | null; variations_total: string | null;
   spent: string | null; earned: string | null; remaining: string | null; forecast: string | null;
 };
 type FinishRow = { material_id: string; qty_needed: string; in_store: string };
+type ExcludedRow = { id: string; description: string; quantity: string | null; unit: string | null; est_cost: string | null };
+type VariationRow = { work_item_id: string; est_at_addition: string | null; note: string | null; created_at: string };
 
 type EvRow = {
   work_item_id: string; stage_id: string | null; element_name: string | null;
@@ -40,7 +43,7 @@ export default async function BuildingDetail({ params }: { params: { id: string 
       .select("work_item_id,stage_id,element_name,description,kind,qty_planned,unit,qty_done,unit_cost_live,planned_value,earned_value,boq_amount")
       .eq("building_id", b.id).order("element_name"),
     supabase.from("building_money")
-      .select("budget,budget_date,spent,earned,remaining,forecast")
+      .select("budget,budget_date,variations_total,spent,earned,remaining,forecast")
       .eq("building_id", b.id).maybeSingle(),
     supabase.from("building_finish_takeoff").select("material_id,qty_needed,in_store").eq("building_id", b.id),
     supabase.from("material_prices").select("material_id,unit_price,effective_from")
@@ -48,16 +51,34 @@ export default async function BuildingDetail({ params }: { params: { id: string 
       .order("effective_from", { ascending: false }),
   ]);
 
+  // Excluded (by-others) lines on this recipe + this building's variations.
+  const [{ data: excludedRows }, { data: variationRows }] = await Promise.all([
+    supabase.from("work_item_cost")
+      .select("id,description,quantity,unit,est_cost")
+      .eq("building_type_id", b.building_type_id).eq("in_scope", false),
+    supabase.from("building_variations")
+      .select("work_item_id,est_at_addition,note,created_at")
+      .eq("building_id", b.id).order("created_at", { ascending: false }),
+  ]);
+
   const ev = (evRows ?? []) as EvRow[];
   const totalPlanned = ev.filter((r) => r.planned_value != null).reduce((a, r) => a + Number(r.planned_value), 0);
   const totalEarned = ev.filter((r) => r.earned_value != null).reduce((a, r) => a + Number(r.earned_value), 0);
   const pctEarned = totalPlanned > 0 ? Math.round((totalEarned / totalPlanned) * 100) : null;
 
-  // Money card: budget photo vs live spent/earned/forecast (building_money view).
+  // Money card: budget photo (+ variations) vs live spent/earned/forecast.
   const m = (money ?? null) as Money | null;
   const budget = m?.budget != null ? Number(m.budget) : null;
+  const variationsTotal = m?.variations_total != null ? Number(m.variations_total) : 0;
+  const photoBudget = budget != null ? budget - variationsTotal : null;
   const forecast = m?.forecast != null ? Number(m.forecast) : null;
   const overBy = budget != null && forecast != null ? forecast - budget : null;
+
+  const excludedLines = (excludedRows ?? []) as ExcludedRow[];
+  const variations = (variationRows ?? []) as VariationRow[];
+  const variedIds = new Set(variations.map((v) => v.work_item_id));
+  const addableLines = excludedLines.filter((e) => !variedIds.has(e.id));
+  const excludedDesc = (id: string) => excludedLines.find((e) => e.id === id)?.description ?? id;
 
   // Latest price per material (rows arrive newest-first).
   const prices: Record<string, number> = {};
@@ -110,8 +131,13 @@ export default async function BuildingDetail({ params }: { params: { id: string 
         {budget != null ? (
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div>
-              <div className="stat-label">Budget (photo taken {m?.budget_date ?? "—"})</div>
+              <div className="stat-label">{variationsTotal > 0 ? "Budget" : `Budget (photo taken ${m?.budget_date ?? "—"})`}</div>
               <div className="mt-1 font-mono text-xl font-semibold text-white">{ngn(budget)}</div>
+              {variationsTotal > 0 && (
+                <div className="mt-0.5 text-xs text-[#8b95a7]">
+                  photo {ngn(photoBudget)} ({m?.budget_date ?? "—"}) + variations {ngn(variationsTotal)}
+                </div>
+              )}
             </div>
             <div>
               <div className="stat-label">Spent so far</div>
@@ -135,6 +161,50 @@ export default async function BuildingDetail({ params }: { params: { id: string 
           </div>
         )}
       </section>
+
+      {/* Variations — pull by-others work into THIS house only, dated. */}
+      {(addableLines.length > 0 || variations.length > 0) && (
+        <details className="card p-0 overflow-hidden">
+          <summary className="cursor-pointer px-5 py-4 text-sm font-semibold text-white">
+            Add excluded work to THIS house (variation)
+            {variations.length > 0 && <span className="ml-2 badge badge-muted">{variations.length} added</span>}
+          </summary>
+          <div className="space-y-4 border-t border-white/[0.06] p-5">
+            <p className="text-xs text-[#8b95a7]">
+              Adds only to this house&apos;s budget, dated — the recipe and other houses are untouched.
+            </p>
+            <VariationAdder
+              buildingId={b.id}
+              lines={addableLines.map((l) => ({
+                id: l.id, description: l.description,
+                quantity: l.quantity != null ? Number(l.quantity) : null,
+                unit: l.unit, est_cost: l.est_cost != null ? Number(l.est_cost) : null,
+              }))}
+            />
+            {addableLines.length === 0 && (
+              <p className="text-xs text-[#5b6473]">Every excluded line is already on this house.</p>
+            )}
+            {variations.length > 0 && (
+              <div>
+                <h3 className="text-sm font-semibold text-white">On this house</h3>
+                <ul className="mt-2 space-y-1.5">
+                  {variations.map((v) => (
+                    <li key={v.work_item_id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white/[0.02] px-3 py-2 text-sm">
+                      <span className="min-w-0 flex-1 text-[13px] leading-snug text-[#c7cedb]">
+                        {excludedDesc(v.work_item_id)}
+                        {v.note && <span className="ml-2 text-xs text-[#5b6473]">“{v.note}”</span>}
+                      </span>
+                      <span className="shrink-0 font-mono text-xs text-[#8b95a7]">
+                        {v.est_at_addition != null ? ngn(Number(v.est_at_addition)) : "—"} · {v.created_at.slice(0, 10)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </details>
+      )}
 
       {/* To finish this house — remaining work → materials, minus store stock. */}
       {finish.length > 0 && (

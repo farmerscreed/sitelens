@@ -5,6 +5,7 @@ import { RecipeEditor } from "@/components/RecipeEditor";
 import { BulkKindAccept } from "@/components/BulkKindAccept";
 import { PriceMissingPanel } from "@/components/PriceMissingPanel";
 import { AssemblyProposals } from "@/components/AssemblyProposals";
+import { ScopeToggle } from "@/components/ScopeToggle";
 import { IconAlert } from "@/components/icons";
 
 type WorkRow = {
@@ -12,10 +13,15 @@ type WorkRow = {
   boq_ref: string | null;
   description: string; quantity: string | null; unit: string | null; kind: string;
   assembly_id: string | null; material_id: string | null; boq_rate: string | null; is_priced: boolean;
+  in_scope: boolean;
   unit_cost_live: string | null; cost_live: string | null; boq_amount: string | null;
   est_cost: string | null; est_source: "build_up" | "boq_rate" | null;
 };
-type TakeoffRow = { material_id: string; qty_required: string };
+type CompRow = {
+  assembly_id: string; material_id: string; qty_per_unit: string; unit: string;
+  waste_factor: string; component_kind: string; reuse_count: string | null;
+};
+type ConvRow = { material_id: string; from_unit: string; to_unit: string; factor: string };
 
 const ngn = (n: number | null | undefined) =>
   n == null ? "—" : `₦${Number(n).toLocaleString("en-NG", { maximumFractionDigits: 0 })}`;
@@ -42,7 +48,7 @@ export default async function RecipeDetail({ params }: { params: { id: string } 
   const typeId = params.id;
   const [
     { data: type }, { data: stages }, { data: items }, { data: costs }, { data: materials },
-    { data: workItems }, { data: takeoff }, { data: assemblies }, { data: priceRows },
+    { data: workItems }, { data: comps }, { data: convs }, { data: assemblies }, { data: priceRows },
   ] = await Promise.all([
     supabase.from("building_types").select("id,name,category,version").eq("id", typeId).single(),
     supabase.from("type_stages").select("id,name,sequence").eq("building_type_id", typeId).order("sequence"),
@@ -50,9 +56,11 @@ export default async function RecipeDetail({ params }: { params: { id: string } 
     supabase.from("type_stage_costs").select("id,stage_id,category,amount").eq("building_type_id", typeId),
     supabase.from("materials_catalog").select("id,name,unit").order("name"),
     supabase.from("work_item_cost")
-      .select("id,stage_id,element_name,section_name,boq_ref,description,quantity,unit,kind,assembly_id,material_id,boq_rate,is_priced,unit_cost_live,cost_live,boq_amount,est_cost,est_source")
+      .select("id,stage_id,element_name,section_name,boq_ref,description,quantity,unit,kind,assembly_id,material_id,boq_rate,is_priced,in_scope,unit_cost_live,cost_live,boq_amount,est_cost,est_source")
       .eq("building_type_id", typeId).order("element_name"),
-    supabase.from("type_material_takeoff").select("material_id,qty_required").eq("building_type_id", typeId),
+    supabase.from("assembly_components")
+      .select("assembly_id,material_id,qty_per_unit,unit,waste_factor,component_kind,reuse_count"),
+    supabase.from("material_conversions").select("material_id,from_unit,to_unit,factor"),
     supabase.from("assemblies").select("id,name,unit,ratio").order("name"),
     supabase.from("material_prices").select("material_id,unit_price,effective_from")
       .lte("effective_from", new Date().toISOString().slice(0, 10))
@@ -64,48 +72,89 @@ export default async function RecipeDetail({ params }: { params: { id: string } 
   const wi = (workItems ?? []) as WorkRow[];
   const matOf = (id: string) => (materials ?? []).find((m) => m.id === id);
 
+  // CONTRACT SCOPE: the bill decided (priced = in, unpriced = by-others). All
+  // numbers, panels and lists below run over the CONTRACT only; excluded lines
+  // live in their own collapsed list with a one-tap way back in.
+  const inScope = wi.filter((r) => r.in_scope);
+  const excluded = wi.filter((r) => !r.in_scope);
+  const excludedEst = excluded.filter((r) => r.est_cost != null).reduce((a, r) => a + Number(r.est_cost), 0);
+
   // Latest price per material (rows arrive newest-first).
   const prices: Record<string, number> = {};
   for (const p of priceRows ?? [])
     if (prices[p.material_id] === undefined) prices[p.material_id] = Number(p.unit_price);
 
   // Two totals only: the QS's document (frozen at import) and today's cost.
-  const boqDocTotal = wi.filter((r) => r.boq_amount != null).reduce((a, r) => a + Number(r.boq_amount), 0);
-  const estTotal = wi.filter((r) => r.est_cost != null).reduce((a, r) => a + Number(r.est_cost), 0);
-  const buildUpTotal = wi.filter((r) => r.est_source === "build_up").reduce((a, r) => a + Number(r.est_cost), 0);
+  const boqDocTotal = inScope.filter((r) => r.boq_amount != null).reduce((a, r) => a + Number(r.boq_amount), 0);
+  const estTotal = inScope.filter((r) => r.est_cost != null).reduce((a, r) => a + Number(r.est_cost), 0);
+  const buildUpTotal = inScope.filter((r) => r.est_source === "build_up").reduce((a, r) => a + Number(r.est_cost), 0);
   const buildUpPct = estTotal > 0 ? Math.round((buildUpTotal / estTotal) * 100) : 0;
-  const noPriceCount = wi.filter((r) => r.est_source == null).length;
+  const noPriceCount = inScope.filter((r) => r.est_source == null).length;
 
   const byElement = new Map<string, WorkRow[]>();
-  for (const r of wi) {
+  for (const r of inScope) {
     const el = r.element_name ?? "Ungrouped";
     if (!byElement.has(el)) byElement.set(el, []);
     byElement.get(el)!.push(r);
   }
 
-  // Shopping list: take-off aggregated to material in stock units.
+  // Shopping list: contract-only take-off computed here (the DB view is not
+  // scope-aware) — same math as type_material_takeoff: direct supply + mixes
+  // exploded (waste / formwork reuse), converted to stock units, unconvertible
+  // quantities skipped rather than guessed.
+  const nu = (u: string | null | undefined) => (u ?? "").replace(/\s/g, "").toLowerCase();
+  const convMap = new Map<string, number>();
+  for (const c of (convs ?? []) as ConvRow[])
+    convMap.set(`${c.material_id}|${nu(c.from_unit)}|${nu(c.to_unit)}`, Number(c.factor));
+  const compsByAssembly = new Map<string, CompRow[]>();
+  for (const c of (comps ?? []) as CompRow[]) {
+    if (!compsByAssembly.has(c.assembly_id)) compsByAssembly.set(c.assembly_id, []);
+    compsByAssembly.get(c.assembly_id)!.push(c);
+  }
+  const toStock = (materialId: string, qty: number, from: string | null): number | null => {
+    const m = matOf(materialId);
+    if (!m) return null;
+    if (!from || nu(from) === nu(m.unit)) return qty;
+    const f = convMap.get(`${materialId}|${nu(from)}|${nu(m.unit)}`);
+    return f != null ? qty * f : null;
+  };
   const takeoffAgg = new Map<string, number>();
-  for (const t of (takeoff ?? []) as TakeoffRow[])
-    takeoffAgg.set(t.material_id, (takeoffAgg.get(t.material_id) ?? 0) + Number(t.qty_required));
+  const addQty = (mid: string, q: number | null) => {
+    if (q != null && q > 0) takeoffAgg.set(mid, (takeoffAgg.get(mid) ?? 0) + q);
+  };
+  for (const r of inScope) {
+    const qty = r.quantity != null ? Number(r.quantity) : null;
+    if (qty == null) continue;
+    if (r.kind === "material_supply" && r.material_id) {
+      addQty(r.material_id, toStock(r.material_id, qty, r.unit));
+    } else if (r.kind === "composite" && r.assembly_id) {
+      for (const c of compsByAssembly.get(r.assembly_id) ?? []) {
+        const eff = c.component_kind === "reusable"
+          ? Number(c.qty_per_unit) / Math.max(Number(c.reuse_count ?? 1) || 1, 1)
+          : Number(c.qty_per_unit) * Number(c.waste_factor);
+        addQty(c.material_id, toStock(c.material_id, qty * eff, c.unit));
+      }
+    }
+  }
   const takeoffRows = [...takeoffAgg.entries()]
     .map(([material_id, qty]) => ({ material_id, qty, m: matOf(material_id) }))
     .sort((a, b) => (a.m?.name ?? "").localeCompare(b.m?.name ?? ""));
 
-  // Finish-setup work: mix candidates + lines still typed 'other'.
-  const proposalCandidates = wi
+  // Finish-setup work (contract only): mix candidates + lines still typed 'other'.
+  const proposalCandidates = inScope
     .filter((r) => (r.kind === "composite" || r.kind === "other") && r.assembly_id == null && r.boq_rate != null)
     .map((r) => ({
       id: r.id, description: r.description, mix_ratio: null,
       boq_rate: Number(r.boq_rate), unit: r.unit,
       context: [r.element_name, r.section_name].filter(Boolean).join(" · ") || null,
     }));
-  const otherRows = wi.filter((r) => r.kind === "other");
+  const otherRows = inScope.filter((r) => r.kind === "other");
   // Composite lines without a mix whose words may say steel/formwork — the old
   // rule order filed them under concrete; BulkKindAccept offers the re-type.
-  const misTypeCandidates = wi.filter((r) => r.kind === "composite" && r.assembly_id == null);
+  const misTypeCandidates = inScope.filter((r) => r.kind === "composite" && r.assembly_id == null);
   const typeFixRows = [...otherRows, ...misTypeCandidates];
   // Lines no estimate can reach — the give-them-a-price list.
-  const noPriceRows = wi.filter((r) => r.est_source == null);
+  const noPriceRows = inScope.filter((r) => r.est_source == null);
   const setupIncomplete = proposalCandidates.length > 0 || noPriceCount > 0 || otherRows.length > 0;
 
   return (
@@ -114,7 +163,10 @@ export default async function RecipeDetail({ params }: { params: { id: string } 
       <section className="card">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-white">{type.name}</h1>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-2xl font-semibold tracking-tight text-white">{type.name}</h1>
+              {excluded.length > 0 && <span className="badge badge-muted">Semi-finished (as billed)</span>}
+            </div>
             <p className="mt-1 text-sm text-[#8b95a7]">{type.category ?? "—"} · version {type.version}</p>
           </div>
           {wi.length > 0 && (
@@ -131,6 +183,13 @@ export default async function RecipeDetail({ params }: { params: { id: string } 
             </div>
           )}
         </div>
+        {excluded.length > 0 && (
+          <p className="mt-3 text-sm text-[#8b95a7]">
+            Excluded from contract (by others): {excluded.length} line{excluded.length === 1 ? "" : "s"}
+            {excludedEst > 0 && <> ≈ {ngn(excludedEst)} at your prices</>} —{" "}
+            <a href="#excluded-lines" className="underline hover:text-white">view</a>
+          </p>
+        )}
         {wi.length > 0 && setupIncomplete && (
           <p className="mt-4 flex items-start gap-1.5 rounded-xl border border-accent-500/25 bg-accent-500/[0.06] px-3.5 py-2.5 text-sm text-accent-300">
             <IconAlert className="mt-0.5 h-4 w-4 shrink-0" />
@@ -179,7 +238,7 @@ export default async function RecipeDetail({ params }: { params: { id: string } 
                         quantity: r.quantity != null ? Number(r.quantity) : null,
                         unit: r.unit, material_id: r.material_id,
                       }))}
-                      pricedLines={wi.filter((r) => r.boq_rate != null && Number(r.boq_rate) > 0).map((r) => ({
+                      pricedLines={inScope.filter((r) => r.boq_rate != null && Number(r.boq_rate) > 0).map((r) => ({
                         description: r.description, boq_rate: Number(r.boq_rate),
                         unit: r.unit, element_name: r.element_name,
                       }))}
@@ -229,7 +288,10 @@ export default async function RecipeDetail({ params }: { params: { id: string } 
                           <tr key={r.id}>
                             <td className="text-white">
                               <div className="max-w-[26rem] whitespace-normal text-[13px] leading-snug">{r.description}</div>
-                              {r.boq_ref && <div className="mt-0.5 text-[10px] text-[#5b6473]">{r.boq_ref}</div>}
+                              <div className="mt-0.5 flex items-center gap-2">
+                                {r.boq_ref && <span className="text-[10px] text-[#5b6473]">{r.boq_ref}</span>}
+                                <ScopeToggle id={r.id} inScope={true} />
+                              </div>
                             </td>
                             <td><span className={`badge ${kindBadge(r.kind)}`}>{KIND_LABEL[r.kind] ?? r.kind.replace("_", " ")}</span></td>
                             <td className="text-right font-mono">
@@ -288,6 +350,40 @@ export default async function RecipeDetail({ params }: { params: { id: string } 
               </table>
             </div>
           </section>
+
+          {/* Excluded (by others) — out of every number above; one tap brings a line back. */}
+          {excluded.length > 0 && (
+            <details id="excluded-lines" className="card p-0 overflow-hidden">
+              <summary className="cursor-pointer px-5 py-4 text-sm font-semibold text-white">
+                Excluded from contract (by others) — {excluded.length} line{excluded.length === 1 ? "" : "s"}
+                <span className="ml-2 font-normal text-[#8b95a7]">— the bill left these unpriced, so they&apos;re not in your numbers; add one to a single house as a variation from its page</span>
+              </summary>
+              <div className="overflow-x-auto border-t border-white/[0.06]">
+                <table className="table-base min-w-[720px]">
+                  <thead>
+                    <tr><th className="min-w-[22rem]">Description</th><th className="text-right">Qty</th><th className="text-right">At your prices</th><th /></tr>
+                  </thead>
+                  <tbody>
+                    {excluded.map((r) => (
+                      <tr key={r.id}>
+                        <td className="text-white">
+                          <div className="max-w-[28rem] whitespace-normal text-[13px] leading-snug">{r.description}</div>
+                          <div className="mt-0.5 text-[10px] text-[#5b6473]">{r.element_name ?? "—"}{r.boq_ref ? ` · ${r.boq_ref}` : ""}</div>
+                        </td>
+                        <td className="text-right font-mono">
+                          {r.quantity != null ? Number(r.quantity).toLocaleString("en-NG") : "—"} <span className="text-[#8b95a7]">{r.unit ?? ""}</span>
+                        </td>
+                        <td className="text-right font-mono">
+                          {r.est_cost != null ? ngn(Number(r.est_cost)) : <span className="text-xs text-[#5b6473]">no price yet</span>}
+                        </td>
+                        <td className="text-right"><ScopeToggle id={r.id} inScope={false} /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          )}
         </>
       )}
 
