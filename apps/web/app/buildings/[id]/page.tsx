@@ -5,6 +5,7 @@ import { CompleteStageButton } from "@/components/CompleteStageButton";
 import { LogWorkDoneForm } from "@/components/LogWorkDoneForm";
 import { SnapshotBudgetButton } from "@/components/SnapshotBudgetButton";
 import { VariationAdder } from "@/components/VariationAdder";
+import { ArchiveBuildingButton } from "@/components/ArchiveBuildingButton";
 import { IconChevron, IconCheck, IconAlert } from "@/components/icons";
 
 type Money = {
@@ -31,7 +32,7 @@ export default async function BuildingDetail({ params }: { params: { id: string 
   if (!userRes.user) redirect("/login");
 
   const { data: b } = await supabase
-    .from("buildings").select("id,code,status,building_type_id,current_stage_id").eq("id", params.id).single();
+    .from("buildings").select("id,code,status,building_type_id,current_stage_id,archived_at").eq("id", params.id).single();
   if (!b) redirect("/board");
 
   const [{ data: stages }, { data: progress }, { data: materials }, { data: rva }, { data: evRows }, { data: money }, { data: finishRows }, { data: priceRows }] = await Promise.all([
@@ -114,7 +115,10 @@ export default async function BuildingDetail({ params }: { params: { id: string 
       </Link>
       <header className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold tracking-tight text-white">Building {b.code}</h1>
-        <span className={`badge ${badge(b.status)}`}>{b.status}</span>
+        <div className="flex flex-wrap items-center gap-3">
+          <span className={`badge ${badge(b.status)}`}>{b.status}</span>
+          <ArchiveBuildingButton buildingId={b.id} code={b.code} archived={b.archived_at != null} />
+        </div>
       </header>
 
       {/* Money card — this building as a financial event, judged against its own

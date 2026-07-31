@@ -32,6 +32,18 @@ export function RecipeEditor({
     else router.refresh();
   }
 
+  // Archive (soft-delete) this recipe. Blocked server-side while a live building
+  // still uses it — that message surfaces in `err`. On success it leaves the
+  // library, so send the user back there.
+  const [confirmingArchive, setConfirmingArchive] = useState(false);
+  async function archiveRecipe() {
+    setBusy(true); setErr(null);
+    const { error } = await supabase.rpc("fn_archive_building_type", { p_type: type.id });
+    setBusy(false);
+    if (error) setErr(error.message);
+    else router.push("/recipes");
+  }
+
   const [stageName, setStageName] = useState("");
   const [stageSeq, setStageSeq] = useState(stages.length + 1);
   const [biStage, setBiStage] = useState<string>(stages[0]?.id ?? "");
@@ -129,11 +141,24 @@ export function RecipeEditor({
         </div>
       </details>
 
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <button className="btn btn-ghost" disabled={busy}
           onClick={() => call("fn_duplicate_type", { p_type: type.id, p_new_name: `${type.name} (copy)` })}>Duplicate</button>
         <button className="btn btn-ghost" disabled={busy}
           onClick={() => call("fn_new_type_version", { p_type: type.id })}>New version</button>
+        <span className="grow" />
+        {confirmingArchive ? (
+          <>
+            <span className="text-sm text-[#8b95a7]">Archive this recipe? It leaves the library; you can restore it.</span>
+            <button className="btn btn-danger" disabled={busy} onClick={archiveRecipe}>
+              {busy ? "Archiving…" : "Yes, archive recipe"}
+            </button>
+            <button className="btn btn-ghost" disabled={busy} onClick={() => setConfirmingArchive(false)}>Cancel</button>
+          </>
+        ) : (
+          <button className="btn btn-ghost" disabled={busy}
+            onClick={() => { setConfirmingArchive(true); setErr(null); }}>Archive recipe</button>
+        )}
       </div>
       {err && <p className="flex items-center gap-1.5 text-sm text-red-300"><IconAlert className="h-4 w-4" />{err}</p>}
     </div>
