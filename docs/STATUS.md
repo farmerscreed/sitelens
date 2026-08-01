@@ -27,9 +27,18 @@ Cloud DB migrations ledger diverges from local names (apply single migrations vi
 `SUPABASE_ACCESS_TOKEN` lacks DDL privilege → the MCP is the only cloud-DDL path here.
 Env note: this box's Supabase CLI (2.98.1) rejects the committed `[local_smtp]` config
 key (desktop CLI is newer); `supabase start` needs it temporarily renamed to `[inbucket]`
-then restored (git stays clean). **Next in Area 1:** advance a stage + log work on PE009,
-watch the money card move; then continue areas 2–9 (materials → expenses → daily reports
-→ planner → portal → Ask → notifications → break-it).
+then restored (git stays clean).
+
+**Area 1 (Board & building ops) — DONE:** archived the Type-A buildings + Type-A recipe,
+stamped PE009 (+more) from Type B, budget photo (₦288.8M), logged work (blend proven),
+completed a stage (board dot → Frame). **Area 2 (Materials store) — DONE:** store engine
+verified honest (IN/OUT, 0 negative, spent moves); then two founder findings shipped —
+work-done dropdown grouped by stage, and the big one: **materials unified on the take-off
++ split by grain** (DECISIONS #59) — store=project pool, variance=per building, procurement
+=per batch; the misleading project-wide usage-vs-plan table is retired. **44 migrations, 27
+suites green.** **NEXT: Area 3 — Expenses & approvals** (create, approve under/over the
+250k threshold, void; confirm AC-11 in real use; spends land on the building money card),
+then areas 4–9 (daily reports+photos → planner → portal → Ask → notifications → break-it).
 
 **BOQ AREA: CLOSED (2026-07-31).** The full pipeline — upload (any format) → live
 progress stepper → Set-up-from-this-bill (stages/materials/mixes/types/prices) →

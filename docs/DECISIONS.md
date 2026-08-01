@@ -427,3 +427,19 @@ logged here so the founder can review drift. Newest at the bottom.
     "earned" now correctly counts QS-rate lines with logged work). The building page
     tags QS-rate lines "QS rate". A view-only change; CREATE OR REPLACE + appended
     est_source column keeps building_money valid.
+59. **Material planning unified on the take-off; store/variance/procurement split by
+    grain (pilot, 2026-08-01).** `type_boq_items` holds only DIRECTLY-supplied
+    materials; `type_material_takeoff` is the COMPLETE picture (direct + materials
+    derived from mixes/assemblies, with waste + unit conversion). So "planned material"
+    = `type_material_plan` (a view: take-off, with a `type_boq_items` FALLBACK per
+    (type,stage,material) the take-off doesn't cover — so manually-built recipes and the
+    existing type_boq_items-based tests keep working). Repointed onto it:
+    `building_req_vs_actual` (+`planned_total`/`remaining`), `fn_reorder_advice`, and the
+    AC-9 overrun in `fn_complete_stage` — the overrun check now catches mix-derived
+    materials too. New `batch_material_plan` (per-batch procurement). Split by the RIGHT
+    grain: **store = project pool** (Materials page: on-hand + a project procurement
+    plan + optional by-batch); **variance = per building** (building page "Usage vs
+    plan": planned/used/remaining + overrun vs the plan for COMPLETED stages) — a project
+    average was hiding per-house overrun, so the old project-wide "usage vs plan" table
+    on the Materials page was retired; **procurement = project/batch**. reorder + all
+    plans now also ignore archived buildings (ties DECISIONS #57).
