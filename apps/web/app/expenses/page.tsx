@@ -12,10 +12,11 @@ export default async function ExpensesPage({ searchParams }: { searchParams: { p
   const { data: projects } = await supabase.from("projects").select("id,name").is("archived_at", null).order("name");
   const projectId = activeProjectId(searchParams, projects ?? []);
 
-  const [{ data: expenses }, { data: budgetLines }] = await Promise.all([
-    supabase.from("expenses").select("id,amount,status,description,paid_to,budget_line_id,created_at")
+  const [{ data: expenses }, { data: budgetLines }, { data: buildings }] = await Promise.all([
+    supabase.from("expenses").select("id,amount,status,description,paid_to,budget_line_id,building_id,created_at")
       .eq("project_id", projectId).order("created_at", { ascending: false }),
     supabase.from("budget_lines").select("id,name,cost_code").eq("project_id", projectId),
+    supabase.from("buildings").select("id,code").eq("project_id", projectId).is("archived_at", null).order("code"),
   ]);
 
   return (
@@ -31,7 +32,7 @@ export default async function ExpensesPage({ searchParams }: { searchParams: { p
             "Void (with a reason) anything entered in error — the history stays intact.",
           ],
         }} />
-      <ExpensesPanel projectId={projectId} expenses={expenses ?? []} budgetLines={budgetLines ?? []} />
+      <ExpensesPanel projectId={projectId} expenses={expenses ?? []} budgetLines={budgetLines ?? []} buildings={buildings ?? []} />
     </div>
   );
 }

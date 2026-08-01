@@ -4,21 +4,25 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { IconPlus, IconAlert } from "@/components/icons";
 
-type Expense = { id: string; amount: number; status: string; description: string | null; paid_to: string | null; budget_line_id: string; created_at: string };
+type Expense = { id: string; amount: number; status: string; description: string | null; paid_to: string | null; budget_line_id: string; building_id: string | null; created_at: string };
 type BudgetLine = { id: string; name: string; cost_code: string };
+type Building = { id: string; code: string };
 
 const badgeClass: Record<string, string> = {
   pending: "badge-accent", approved: "badge-green", rejected: "badge-red", voided: "badge-muted",
 };
 
-export function ExpensesPanel({ projectId, expenses, budgetLines }: { projectId: string; expenses: Expense[]; budgetLines: BudgetLine[] }) {
+export function ExpensesPanel({ projectId, expenses, budgetLines, buildings }: { projectId: string; expenses: Expense[]; budgetLines: BudgetLine[]; buildings: Building[] }) {
   const router = useRouter();
   const supabase = createClient();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [bl, setBl] = useState(budgetLines[0]?.id ?? "");
+  const [bldId, setBldId] = useState("");   // "" = whole project (no building tag)
   const [amount, setAmount] = useState("");
   const [desc, setDesc] = useState("");
+
+  const codeOf = new Map(buildings.map((b) => [b.id, b.code]));
 
   async function call(fn: string, args: Record<string, unknown>) {
     setBusy(true); setErr(null);
@@ -30,6 +34,7 @@ export function ExpensesPanel({ projectId, expenses, budgetLines }: { projectId:
     await call("fn_create_expense", {
       p_id: crypto.randomUUID(), p_project: projectId, p_budget_line: bl,
       p_amount: Number(amount), p_idempotency_key: crypto.randomUUID(), p_description: desc,
+      p_building: bldId || null,
     });
     setAmount(""); setDesc("");
   }
@@ -46,13 +51,14 @@ export function ExpensesPanel({ projectId, expenses, budgetLines }: { projectId:
         <div className="mt-3 overflow-x-auto">
           <table className="table-base">
             <thead>
-              <tr><th>Amount</th><th>Description</th><th>Status</th><th className="text-right">Actions</th></tr>
+              <tr><th>Amount</th><th>Description</th><th>Building</th><th>Status</th><th className="text-right">Actions</th></tr>
             </thead>
             <tbody>
               {expenses.map((e) => (
                 <tr key={e.id}>
                   <td className="whitespace-nowrap font-mono text-white">₦{Number(e.amount).toLocaleString()}</td>
                   <td>{e.description ?? <span className="text-[#5b6473]">—</span>}</td>
+                  <td>{e.building_id ? <span className="text-[#c7cedb]">{codeOf.get(e.building_id) ?? "—"}</span> : <span className="text-[#5b6473]">project</span>}</td>
                   <td><span className={`badge ${badgeClass[e.status] ?? "badge-muted"}`}>{e.status}</span></td>
                   <td className="text-right">
                     <div className="flex justify-end gap-1.5">
@@ -68,7 +74,7 @@ export function ExpensesPanel({ projectId, expenses, budgetLines }: { projectId:
                   </td>
                 </tr>
               ))}
-              {expenses.length === 0 && <tr><td colSpan={4} className="py-6 text-center text-[#8b95a7]">No expenses yet — record one below.</td></tr>}
+              {expenses.length === 0 && <tr><td colSpan={5} className="py-6 text-center text-[#8b95a7]">No expenses yet — record one below.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -81,6 +87,13 @@ export function ExpensesPanel({ projectId, expenses, budgetLines }: { projectId:
             <label className="label">Budget line</label>
             <select className="select" value={bl} onChange={(e) => setBl(e.target.value)}>
               {budgetLines.map((l) => <option key={l.id} value={l.id}>{l.cost_code} · {l.name}</option>)}
+            </select>
+          </div>
+          <div className="sm:col-span-2">
+            <label className="label">Building <span className="text-[#5b6473]">(optional — tags this spend to a house&apos;s money card)</span></label>
+            <select className="select" value={bldId} onChange={(e) => setBldId(e.target.value)}>
+              <option value="">Whole project (no building)</option>
+              {buildings.map((b) => <option key={b.id} value={b.id}>{b.code}</option>)}
             </select>
           </div>
           <div>
