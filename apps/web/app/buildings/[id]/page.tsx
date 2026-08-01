@@ -40,7 +40,7 @@ export default async function BuildingDetail({ params }: { params: { id: string 
     supabase.from("type_stages").select("id,name,sequence").eq("building_type_id", b.building_type_id).order("sequence"),
     supabase.from("building_stage_progress").select("stage_id,status,completed_at").eq("building_id", b.id),
     supabase.from("materials_catalog").select("id,name,unit"),
-    supabase.from("building_req_vs_actual").select("material_id,required,consumed,overrun").eq("building_id", b.id),
+    supabase.from("building_req_vs_actual").select("material_id,required,consumed,overrun,planned_total,remaining").eq("building_id", b.id),
     supabase.from("building_work_ev")
       .select("work_item_id,stage_id,element_name,description,kind,qty_planned,unit,qty_done,unit_cost_live,planned_value,earned_value,boq_amount,est_source")
       .eq("building_id", b.id).order("element_name"),
@@ -270,30 +270,41 @@ export default async function BuildingDetail({ params }: { params: { id: string 
 
       <section className="card p-0 overflow-hidden">
         <div className="px-5 pt-5">
-          <h2 className="text-sm font-semibold text-white">Requirement vs actual</h2>
-          <p className="mt-0.5 text-xs text-[#8b95a7]">Across completed stages — what the BOQ required vs what was actually consumed on this building.</p>
+          <h2 className="text-sm font-semibold text-white">Usage vs plan</h2>
+          <p className="mt-0.5 text-xs text-[#8b95a7]">
+            This house&apos;s recipe need (mixes broken to raw materials) vs what&apos;s actually been issued to it.
+            Over-use is flagged against the plan for its <strong className="text-[#c7cedb]">completed</strong> stages — not the whole house.
+          </p>
         </div>
         <div className="mt-3 overflow-x-auto">
-          <table className="table-base">
+          <table className="table-base min-w-[640px]">
             <thead>
-              <tr><th>Material</th><th className="text-right">Required</th><th className="text-right">Consumed</th><th className="text-right">Overrun</th></tr>
+              <tr><th>Material</th><th className="text-right">Planned (house)</th><th className="text-right">Used</th><th className="text-right">Remaining</th><th className="text-right">Status</th></tr>
             </thead>
             <tbody>
-              {(rva ?? []).map((r, k) => {
-                const over = Number(r.overrun) > 0;
-                return (
-                  <tr key={k}>
-                    <td className="font-medium text-white">{matName(r.material_id)}</td>
-                    <td className="text-right font-mono">{Number(r.required).toLocaleString()}</td>
-                    <td className="text-right font-mono">{Number(r.consumed).toLocaleString()}</td>
-                    <td className={`text-right font-mono ${over ? "text-red-300" : "text-[#8b95a7]"}`}>
-                      {over ? <span className="inline-flex items-center gap-1"><IconAlert className="h-3.5 w-3.5" />+{Number(r.overrun).toLocaleString()}</span>
-                            : <span className="inline-flex items-center gap-1"><IconCheck className="h-3.5 w-3.5" />{Number(r.overrun).toLocaleString()}</span>}
-                    </td>
-                  </tr>
-                );
-              })}
-              {(rva ?? []).length === 0 && <tr><td colSpan={4} className="py-6 text-center text-[#8b95a7]">No completed stages or usage yet.</td></tr>}
+              {(rva ?? [])
+                .filter((r) => Number(r.planned_total) > 0 || Number(r.consumed) > 0)
+                .sort((a, b) => matName(a.material_id).localeCompare(matName(b.material_id)))
+                .map((r, k) => {
+                  const over = Number(r.overrun) > 0;
+                  const unit = (materials ?? []).find((m) => m.id === r.material_id)?.unit ?? "";
+                  return (
+                    <tr key={k}>
+                      <td className="font-medium text-white">{matName(r.material_id)}</td>
+                      <td className="text-right font-mono">{Number(r.planned_total).toLocaleString()} <span className="text-[#8b95a7]">{unit}</span></td>
+                      <td className="text-right font-mono">{Number(r.consumed).toLocaleString()}</td>
+                      <td className="text-right font-mono text-[#8b95a7]">{Number(r.remaining).toLocaleString()}</td>
+                      <td className="text-right">
+                        {over
+                          ? <span className="badge badge-red"><IconAlert className="h-3.5 w-3.5" />+{Number(r.overrun).toLocaleString()} over</span>
+                          : <span className="badge badge-green"><IconCheck className="h-3.5 w-3.5" />ok</span>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              {(rva ?? []).filter((r) => Number(r.planned_total) > 0 || Number(r.consumed) > 0).length === 0 && (
+                <tr><td colSpan={5} className="py-6 text-center text-[#8b95a7]">No recipe materials or usage yet.</td></tr>
+              )}
             </tbody>
           </table>
         </div>
