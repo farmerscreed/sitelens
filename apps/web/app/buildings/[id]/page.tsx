@@ -53,14 +53,23 @@ export default async function BuildingDetail({ params }: { params: { id: string 
       .order("effective_from", { ascending: false }),
   ]);
 
-  // Excluded (by-others) lines on this recipe + this building's variations.
-  const [{ data: excludedRows }, { data: variationRows }] = await Promise.all([
+  // Excluded (by-others) lines on this recipe + this building's variations, and the
+  // actual spend tagged to this building (materials issued OUT + approved expenses).
+  const [{ data: excludedRows }, { data: variationRows }, { data: spendTxns }, { data: spendExpenses }] = await Promise.all([
     supabase.from("work_item_cost")
       .select("id,description,quantity,unit,est_cost")
       .eq("building_type_id", b.building_type_id).eq("in_scope", false),
     supabase.from("building_variations")
       .select("work_item_id,est_at_addition,note,created_at")
       .eq("building_id", b.id).order("created_at", { ascending: false }),
+    supabase.from("material_transactions")
+      .select("material_id,quantity,unit_price,created_at")
+      .eq("building_id", b.id).eq("type", "OUT").is("voided_at", null)
+      .order("created_at", { ascending: false }),
+    supabase.from("expenses")
+      .select("amount,description,created_at")
+      .eq("building_id", b.id).eq("status", "approved").is("voided_at", null)
+      .order("created_at", { ascending: false }),
   ]);
 
   const ev = (evRows ?? []) as EvRow[];
@@ -104,6 +113,21 @@ export default async function BuildingDetail({ params }: { params: { id: string 
   const finishTotal = finish.reduce((a, f) => a + (f.cost ?? 0), 0);
   const loggedCount = ev.filter((r) => r.qty_done != null).length;
   const sparseLogging = ev.length > 0 && loggedCount < ev.length / 2;
+
+  // Spend on this building = materials issued (OUT) + approved expenses. Mirrors the
+  // money card's "Spent" exactly; VOIDED expenses/issues are already excluded by the
+  // queries above (voided_at IS NULL), so a voided item never appears here.
+  const materialSpend = ((spendTxns ?? []) as { material_id: string; quantity: string; unit_price: string | null }[])
+    .map((t) => {
+      const qty = Number(t.quantity);
+      const price = t.unit_price != null ? Number(t.unit_price) : (prices[t.material_id] ?? 0);
+      const mat = (materials ?? []).find((x) => x.id === t.material_id);
+      return { name: mat?.name ?? t.material_id, unit: mat?.unit ?? "", qty, value: qty * price };
+    });
+  const expenseSpend = ((spendExpenses ?? []) as { amount: string; description: string | null }[])
+    .map((e) => ({ desc: e.description ?? "Expense", amount: Number(e.amount) }));
+  const spendTotal = materialSpend.reduce((a, x) => a + x.value, 0) + expenseSpend.reduce((a, x) => a + x.amount, 0);
+  const hasSpend = materialSpend.length > 0 || expenseSpend.length > 0;
 
   const statusOf = new Map((progress ?? []).map((p) => [p.stage_id, p.status]));
   const matName = (id: string) => (materials ?? []).find((m) => m.id === id)?.name ?? id;
@@ -166,6 +190,47 @@ export default async function BuildingDetail({ params }: { params: { id: string 
           </div>
         )}
       </section>
+
+      {/* Spend on this building — the itemised make-up of "Spent so far":
+          materials issued from store + approved expenses tagged to this house. */}
+      {hasSpend && (
+        <section className="card p-0 overflow-hidden">
+          <div className="flex flex-wrap items-center justify-between gap-2 px-5 pt-5">
+            <h2 className="text-sm font-semibold text-white">Spend on this building</h2>
+            <span className="text-xs text-[#8b95a7]">Total <span className="font-mono text-[#c7cedb]">{ngn(spendTotal)}</span></span>
+          </div>
+          <p className="mt-0.5 px-5 text-xs text-[#8b95a7]">
+            What makes up &ldquo;Spent so far&rdquo; — materials issued from store plus approved expenses tagged to this house. Voided items don&apos;t appear.
+          </p>
+          <div className="mt-3 overflow-x-auto">
+            <table className="table-base min-w-[560px]">
+              <thead><tr><th>Item</th><th>Type</th><th className="text-right">Detail</th><th className="text-right">Amount</th></tr></thead>
+              <tbody>
+                {materialSpend.map((x, i) => (
+                  <tr key={`m${i}`}>
+                    <td className="text-white">{x.name}</td>
+                    <td><span className="badge badge-muted">material</span></td>
+                    <td className="text-right font-mono text-[#8b95a7]">{x.qty.toLocaleString()} {x.unit}</td>
+                    <td className="text-right font-mono">{ngn(x.value)}</td>
+                  </tr>
+                ))}
+                {expenseSpend.map((x, i) => (
+                  <tr key={`e${i}`}>
+                    <td className="text-white">{x.desc}</td>
+                    <td><span className="badge badge-accent">expense</span></td>
+                    <td className="text-right font-mono text-[#5b6473]">—</td>
+                    <td className="text-right font-mono">{ngn(x.amount)}</td>
+                  </tr>
+                ))}
+                <tr className="border-t border-white/[0.08]">
+                  <td className="font-semibold text-white" colSpan={3}>Total spent</td>
+                  <td className="text-right font-mono font-semibold text-white">{ngn(spendTotal)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       {/* Variations — pull by-others work into THIS house only, dated. */}
       {(addableLines.length > 0 || variations.length > 0) && (
