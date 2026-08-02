@@ -7,6 +7,9 @@ session. Newest status at the top of each section._
 
 ## ▶ NEXT SESSION — start here
 
+> **Read `docs/HANDOVER.md` first** — the single orientation doc (state, how to run + deploy
+> on this box, what was built, what's next). The detail below is the running session log.
+
 **M8 PILOT IN PROGRESS — Area 1 (Board & building ops), 2026-07-31 (session cont'd).**
 Testing the live app area-by-area on the founder's real cloud data. Two fixes built,
 tested (`bash scripts/verify_all.sh` → **43 migrations, 26 suites green**, incl. new
