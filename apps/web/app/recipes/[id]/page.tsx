@@ -51,7 +51,7 @@ export default async function RecipeDetail({ params }: { params: { id: string } 
     { data: workItems }, { data: comps }, { data: convs }, { data: assemblies }, { data: priceRows },
   ] = await Promise.all([
     supabase.from("building_types").select("id,name,category,version").eq("id", typeId).single(),
-    supabase.from("type_stages").select("id,name,sequence").eq("building_type_id", typeId).order("sequence"),
+    supabase.from("type_stages").select("id,name,sequence,expected_days").eq("building_type_id", typeId).order("sequence"),
     supabase.from("type_boq_items").select("id,stage_id,material_id,quantity,unit").eq("building_type_id", typeId),
     supabase.from("type_stage_costs").select("id,stage_id,category,amount").eq("building_type_id", typeId),
     supabase.from("materials_catalog").select("id,name,unit").order("name"),

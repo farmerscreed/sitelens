@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { IconPlus, IconAlert } from "@/components/icons";
 
-type Stage = { id: string; name: string; sequence: number };
+type Stage = { id: string; name: string; sequence: number; expected_days: number | null };
 type Item = { id: string; stage_id: string | null; material_id: string; quantity: number; unit: string };
 type Cost = { id: string; stage_id: string | null; category: string; amount: number };
 type Material = { id: string; name: string; unit: string };
@@ -46,6 +46,8 @@ export function RecipeEditor({
 
   const [stageName, setStageName] = useState("");
   const [stageSeq, setStageSeq] = useState(stages.length + 1);
+  const [dur, setDur] = useState<Record<string, string>>(
+    () => Object.fromEntries(stages.map((s) => [s.id, s.expected_days != null ? String(s.expected_days) : ""])));
   const [biStage, setBiStage] = useState<string>(stages[0]?.id ?? "");
   const [biMat, setBiMat] = useState<string>(materials[0]?.id ?? "");
   const [biQty, setBiQty] = useState("");
@@ -60,11 +62,17 @@ export function RecipeEditor({
       {/* Stages */}
       <section className="card">
         <h2 className="text-sm font-semibold text-white">Stages</h2>
+        <p className="mt-1 text-xs text-[#8b95a7]">Set how long each stage takes — the planner spreads its cash over that time for a realistic cash-flow.</p>
         <ol className="mt-3 space-y-1.5">
           {stages.map((s) => (
-            <li key={s.id} className="flex items-center gap-3 text-sm text-[#c7cedb]">
+            <li key={s.id} className="flex items-center gap-2 text-sm text-[#c7cedb]">
               <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-white/[0.06] text-xs font-semibold text-accent-300">{s.sequence}</span>
-              {s.name}
+              <span className="min-w-0 flex-1 truncate">{s.name}</span>
+              <input type="number" min={0} className="input w-20 py-1 text-sm" placeholder="—"
+                value={dur[s.id] ?? ""} onChange={(e) => setDur({ ...dur, [s.id]: e.target.value })} />
+              <span className="text-xs text-[#5b6473]">days</span>
+              <button className="btn btn-ghost shrink-0 px-2.5 py-1 text-xs" disabled={busy}
+                onClick={() => call("fn_set_type_stage_days", { p_stage: s.id, p_expected_days: (dur[s.id] ?? "") === "" ? null : Number(dur[s.id]) })}>Save</button>
             </li>
           ))}
           {stages.length === 0 && <li className="text-sm text-[#8b95a7]">No stages yet.</li>}

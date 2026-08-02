@@ -12,7 +12,7 @@ DECLARE
   user_a uuid := 'a1111111-1111-1111-1111-111111111111';
   cement uuid := 'a7777777-7777-7777-7777-777777777777';   -- bag @ 9500 (seed)
   asm uuid; typ uuid; stg uuid; imp uuid; r1 uuid; wi uuid;
-  plan uuid; planM uuid; ln uuid; v numeric; fails int := 0;
+  plan uuid; planM uuid; ln uuid; v numeric; r jsonb; fails int := 0;
 BEGIN
   PERFORM set_config('request.jwt.claims', jsonb_build_object('sub', user_a)::text, true);
 
@@ -48,6 +48,15 @@ BEGIN
   v := (fn_max_delivery(planM)->>'multiplier')::numeric;
   IF v <> 4 THEN RAISE WARNING 'max-delivery multiplier=% (exp 4)', v; fails:=fails+1; END IF;
 
+  -- Stage duration spreads the cost across periods (realistic timeline):
+  -- 14 days = 2 weekly periods → ₦695,000 split ₦347,500 + ₦347,500.
+  PERFORM fn_set_plan_line(plan, typ, 1, stg, NULL);   -- back to qty 1
+  PERFORM fn_set_type_stage_days(stg, 14);
+  r := fn_compute_feasibility(plan);
+  IF (r->>'total_funding')::numeric        <> 695000 THEN RAISE WARNING 'spread total=% (exp 695000)', r->>'total_funding'; fails:=fails+1; END IF;
+  IF (r->'periods'->0->>'outflow')::numeric <> 347500 THEN RAISE WARNING 'spread p0=% (exp 347500)', r->'periods'->0->>'outflow'; fails:=fails+1; END IF;
+  IF (r->'periods'->1->>'outflow')::numeric <> 347500 THEN RAISE WARNING 'spread p1=% (exp 347500)', r->'periods'->1->>'outflow'; fails:=fails+1; END IF;
+
   -- Delete a plan line — it's removed; a cross-org caller cannot.
   SELECT id INTO ln FROM plan_lines WHERE plan_id = plan LIMIT 1;
   PERFORM fn_delete_plan_line(plan, ln);
@@ -59,7 +68,7 @@ BEGIN
 
   PERFORM set_config('request.jwt.claims', NULL, true);
   IF fails > 0 THEN RAISE EXCEPTION 'PLANNER-TRUECOST FAILED: % assertion(s)', fails; END IF;
-  RAISE NOTICE 'PLANNER-TRUECOST PASS: feasibility + max-delivery cost from est_cost (mixes+labour) not type_boq_items; plan-line delete + authz.';
+  RAISE NOTICE 'PLANNER-TRUECOST PASS: feasibility + max-delivery cost from est_cost (mixes+labour) not type_boq_items; stage durations spread cost across periods; plan-line delete + authz.';
 END $$;
 ROLLBACK;
 SELECT 'Planner true-cost: PASS' AS result;
