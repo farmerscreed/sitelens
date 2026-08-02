@@ -7,6 +7,14 @@ import {
 } from "@/components/icons";
 
 type Org = { org_id: string; org_name: string; role: string; is_active_org: boolean };
+const naira = (n: number) => "₦" + Math.round(Number(n)).toLocaleString();
+const nairaShort = (n: number) => {
+  const v = Number(n);
+  if (v >= 1e9) return "₦" + (v / 1e9).toFixed(1) + "b";
+  if (v >= 1e6) return "₦" + Math.round(v / 1e6) + "m";
+  if (v >= 1e3) return "₦" + Math.round(v / 1e3) + "k";
+  return "₦" + Math.round(v);
+};
 
 export default async function Dashboard() {
   const supabase = createClient();
@@ -16,62 +24,93 @@ export default async function Dashboard() {
   const { data: orgs } = await supabase.rpc("fn_my_orgs");
   const active = ((orgs as Org[]) ?? []).find((o) => o.is_active_org);
 
-  // Live counts (RLS-scoped SELECTs — read-only, safe).
-  const count = async (table: string, filter?: (q: any) => any) => {
-    let q = supabase.from(table).select("id", { count: "exact", head: true });
-    if (filter) q = filter(q);
-    const { count: c } = await q;
-    return c ?? 0;
-  };
-  const [projects, buildings, recipes, portals, prices, txns] = await Promise.all([
-    count("projects"),
-    count("buildings"),
-    count("building_types", (q) => q.is("archived_at", null)),
-    count("portal_links", (q) => q.is("revoked_at", null)),
-    count("material_prices"),
-    count("material_transactions"),
+  const [
+    { data: projectRows }, { data: buildingRows }, { data: recipeRows },
+    { data: portalRows }, { data: saleRows }, { data: msRows }, { data: txnRows }, { data: priceRows },
+  ] = await Promise.all([
+    supabase.from("projects").select("id").is("archived_at", null),
+    supabase.from("buildings").select("id,status").is("archived_at", null),
+    supabase.from("building_types").select("id").is("archived_at", null),
+    supabase.from("portal_links").select("id").is("revoked_at", null),
+    supabase.from("sale_payment_summary").select("party_role,total_amount,paid"),
+    supabase.from("building_milestones").select("milestone,milestone_order,status,building_id"),
+    supabase.from("material_transactions").select("id").limit(1),
+    supabase.from("material_prices").select("id").limit(1),
   ]);
 
+  const buildings = buildingRows ?? [];
+  const buildingsDone = buildings.filter((b) => b.status === "done").length;
+  const pct = buildings.length ? Math.round((buildingsDone / buildings.length) * 100) : 0;
+
+  const sales = (saleRows ?? []) as { party_role: string; total_amount: string; paid: string }[];
+  const buyerSales = sales.filter((s) => s.party_role === "buyer");
+  const contractValue = buyerSales.reduce((a, s) => a + Number(s.total_amount), 0);
+  const collected = sales.reduce((a, s) => a + Number(s.paid), 0);
+
+  // Portfolio by milestone (across all live buildings).
+  type Ms = { milestone: string; milestone_order: number; status: string; building_id: string };
+  const byMs = new Map<string, { order: number; reached: number; total: Set<string> }>();
+  for (const m of (msRows ?? []) as Ms[]) {
+    if (m.milestone === "Other") continue;
+    if (!byMs.has(m.milestone)) byMs.set(m.milestone, { order: m.milestone_order, reached: 0, total: new Set() });
+    const g = byMs.get(m.milestone)!;
+    g.total.add(m.building_id);
+    if (m.status === "done") g.reached++;
+  }
+  const portfolio = [...byMs.entries()]
+    .map(([milestone, g]) => ({ milestone, order: g.order, reached: g.reached, total: g.total.size }))
+    .sort((a, b) => a.order - b.order);
+
   const stats = [
-    { label: "Projects", value: projects, icon: IconBuilding, href: "/projects" },
-    { label: "Buildings", value: buildings, icon: IconBoard, href: "/board" },
-    { label: "Recipes", value: recipes, icon: IconLayers, href: "/recipes" },
-    { label: "Active portals", value: portals, icon: IconLink, href: "/portal-links" },
+    { label: "Projects", value: (projectRows ?? []).length.toLocaleString(), icon: IconBuilding, href: "/projects" },
+    { label: "Homes", value: buildings.length.toLocaleString(), icon: IconBoard, href: "/board" },
+    { label: "Homes sold", value: buyerSales.length.toLocaleString(), icon: IconReceipt, href: "/sales" },
+    { label: "Collected", value: nairaShort(collected), icon: IconLink, href: "/sales" },
   ];
 
   const launch = [
-    { href: "/board", label: "Board", desc: "Buildings by stage", icon: IconBoard },
-    { href: "/planner", label: "Planner", desc: "Schedule & feasibility", icon: IconCalendar },
-    { href: "/materials", label: "Materials", desc: "Stock & reorder advice", icon: IconBox },
-    { href: "/expenses", label: "Expenses", desc: "Spend vs budget", icon: IconReceipt },
-    { href: "/boq-import", label: "BOQ import", desc: "Extract from PDF", icon: IconUpload },
+    { href: "/board", label: "Board", desc: "Homes by stage", icon: IconBoard },
+    { href: "/sales", label: "Sales & payments", desc: "Buyers, partners, collections", icon: IconReceipt },
+    { href: "/planner", label: "Planner", desc: "Cash-flow feasibility", icon: IconCalendar },
+    { href: "/materials", label: "Materials", desc: "Stock & reorder", icon: IconBox },
+    { href: "/portal-links", label: "Client portals", desc: "Share progress links", icon: IconLink },
     { href: "/ask", label: "Ask", desc: "Query your site data", icon: IconChat },
   ];
 
-  // Adaptive getting-started checklist — reflects real progress.
   const setup = [
-    { done: recipes > 0, label: "Create a building recipe", desc: "Stages + material quantities", href: "/recipes" },
-    { done: prices > 0, label: "Set material prices", desc: "Dated market prices", href: "/prices" },
-    { done: buildings > 0, label: "Add buildings to the board", desc: "Stamp from a recipe", href: "/board" },
-    { done: txns > 0, label: "Log your stock", desc: "Deliveries in, usage out", href: "/materials" },
-    { done: portals > 0, label: "Share a client portal", desc: "Read-only progress link", href: "/portal-links" },
+    { done: (recipeRows ?? []).length > 0, label: "Create a building recipe", desc: "Stages + material quantities", href: "/recipes" },
+    { done: (priceRows ?? []).length > 0, label: "Set material prices", desc: "Dated market prices", href: "/prices" },
+    { done: buildings.length > 0, label: "Add homes to the board", desc: "Stamp from a recipe", href: "/board" },
+    { done: buyerSales.length > 0, label: "Record a sale", desc: "Buyer or partner + payment plan", href: "/sales" },
+    { done: (portalRows ?? []).length > 0, label: "Share a client portal", desc: "Buyer or partner view", href: "/portal-links" },
   ];
   const doneCount = setup.filter((s) => s.done).length;
   const allDone = doneCount === setup.length;
 
   return (
     <div className="space-y-8">
-      {/* Hero */}
+      {/* Hero — portfolio at a glance */}
       <section className="relative overflow-hidden rounded-2xl border border-white/[0.08] bg-gradient-to-br from-ink-800/80 to-ink-900/40 p-6 shadow-panel sm:p-7">
-        <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-accent-500/20 blur-3xl" />
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-accent-300">Command Console</p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
-          {active ? active.org_name : "SiteLens"}
-        </h1>
-        <p className="mt-1.5 text-sm text-[#8b95a7]">
-          Signed in as {userRes.user.email ?? userRes.user.phone}
-          {active && <> · <span className="text-[#c7cedb]">{active.role}</span></>}
-        </p>
+        <div className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-accent-500/20 blur-3xl" />
+        <div className="pointer-events-none absolute inset-0 opacity-[0.15] [background-image:linear-gradient(rgba(255,255,255,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.06)_1px,transparent_1px)] [background-size:32px_32px]" />
+        <div className="relative flex flex-wrap items-end justify-between gap-6">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-accent-300">Command Console</p>
+            <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white sm:text-3xl">{active ? active.org_name : "SiteLens"}</h1>
+            <p className="mt-1.5 text-sm text-[#8b95a7]">
+              Signed in as {userRes.user.email ?? userRes.user.phone}{active && <> · <span className="text-[#c7cedb]">{active.role}</span></>}
+            </p>
+            <div className="mt-4 flex flex-wrap gap-x-8 gap-y-2 text-sm">
+              <span className="text-[#8b95a7]">Contract value <span className="ml-1 font-mono text-white">{naira(contractValue)}</span></span>
+              <span className="text-[#8b95a7]">Collected <span className="ml-1 font-mono text-emerald-300">{naira(collected)}</span></span>
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="stat-label">Portfolio complete</div>
+            <div className="mt-1 font-mono text-4xl font-semibold text-white sm:text-5xl">{pct}<span className="text-2xl text-accent-300">%</span></div>
+            <div className="mt-1 text-xs text-[#8b95a7]">{buildingsDone} of {buildings.length} homes</div>
+          </div>
+        </div>
       </section>
 
       {/* Stats */}
@@ -85,13 +124,29 @@ export default async function Dashboard() {
                 <span className="stat-label">{s.label}</span>
                 <Icon className="h-5 w-5 text-accent-400/80" />
               </div>
-              <div className="stat-value">{s.value.toLocaleString()}</div>
+              <div className="stat-value">{s.value}</div>
             </Link>
           );
         })}
       </section>
 
-      {/* Getting started — adaptive; hides once everything's done */}
+      {/* Portfolio by milestone */}
+      {portfolio.length > 0 && (
+        <section className="card">
+          <h2 className="text-sm font-semibold text-white">Portfolio by milestone</h2>
+          <p className="mt-0.5 text-xs text-[#8b95a7]">Homes that have reached each stage across every project.</p>
+          <div className="mt-4 space-y-2.5">
+            {portfolio.map((m) => (
+              <div key={m.milestone}>
+                <div className="flex items-center justify-between text-sm"><span className="text-[#c7cedb]">{m.milestone}</span><span className="font-mono text-[#8b95a7]">{m.reached}/{m.total}</span></div>
+                <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/[0.07]"><div className="h-full rounded-full bg-accent-sheen" style={{ width: `${m.total ? (m.reached / m.total) * 100 : 0}%` }} /></div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Getting started */}
       {!allDone && (
         <section className="card">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -106,11 +161,8 @@ export default async function Dashboard() {
           </div>
           <div className="mt-4 space-y-1.5">
             {setup.map((s) => (
-              <Link key={s.href} href={s.href}
-                className="group flex items-center gap-3 rounded-xl px-2 py-2 transition hover:bg-white/[0.03]">
-                <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-full border ${
-                  s.done ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300"
-                         : "border-white/15 text-[#5b6473]"}`}>
+              <Link key={s.href} href={s.href} className="group flex items-center gap-3 rounded-xl px-2 py-2 transition hover:bg-white/[0.03]">
+                <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-full border ${s.done ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300" : "border-white/15 text-[#5b6473]"}`}>
                   {s.done ? <IconCheck className="h-3.5 w-3.5" /> : <span className="h-1.5 w-1.5 rounded-full bg-current" />}
                 </span>
                 <span className="min-w-0 flex-1">
