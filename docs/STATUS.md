@@ -43,10 +43,40 @@ DEFERRED to the mobile phase** (no web surface; it's the Flutter field app's job
 is parked). **Area 5 (Planner) — cost basis FIXED (DECISIONS #60):** feasibility +
 max-delivery now cost from the true-cost engine (`type_stage_cost` view), not
 type_boq_items — was undercounting Type B ~5× (₦60.5M → ₦288.8M, verified on cloud).
-**45 migrations, 29 suites green.** **NEXT: run the Area 5 checklist on real numbers**
-(create a Type-B scenario → cash-flow timeline/peaks/total, staggering lowers peak,
-max-delivery, live re-cost), then areas 6–8 (portal → Ask+AI → notifications) → break-it,
-then the mobile phase (Area 4 + mobile "mark done" flow).
+**Area 5 (Planner) — DONE + redesigned:** cost basis fixed (DECISIONS #60), plus a
+cash-flow bar chart, deletable lines (`fn_delete_plan_line`), target stage shown per line,
+and **recipe stage durations** (`fn_set_type_stage_days`) so feasibility SPREADS each
+stage's cost across its weeks (realistic curve; 1-period stages unchanged so AC-8 holds).
+
+**CLIENT SYSTEM — BUILT & DEPLOYED (2026-08-02/03).** A full off-plan client layer,
+research-grounded (deep-research on Nigerian off-plan milestones/payments + JV reporting;
+raw findings under subagents/workflows/wf_e9e89977*):
+- **Standardized milestones** (DECISIONS #61) — 7 client milestones (Foundation → Handover)
+  auto-mapped onto the 15 QS stages; `building_milestones` view; a milestone stepper on the
+  building page. Overall client % = earned value (cost-weighted).
+- **Sales & payments** (DECISIONS #62, money path) — `sales`/`payment_tranches`/`payments`
+  (append-only, idempotent, voidable, no client write policy). BUYER = building, milestone-
+  linked (20/15/15/15/15/20); PARTNER/master-developer = project, time-phased (30% + 4×17.5%
+  at mo 0/6/12/18/24). Waterfall paid/outstanding + due-tracking. **Web: `/sales`** (list +
+  create) and `/sales/[id]` (schedule + record/void).
+- **Portal v2** (DECISIONS #63) — a link is a BUYER view (their house: milestones, payment
+  schedule, photos; NO project money) or a PARTNER view (project-wide: progress, homes-by-
+  milestone, financials, sales); `fn_portal_view` branches on link_type, still safe-columns-
+  only (F-13.6); **email delivery** added. Web: PortalView two layouts + portal-links create
+  form (view type + house + email).
+- **Dashboard redesigned** — portfolio-complete hero, live Homes/Homes-sold/Collected, a
+  "Portfolio by milestone" rollup.
+
+**50 migrations, 31 suites green** (`bash scripts/verify_all.sh`), all DEPLOYED to cloud
+(DB via MCP `apply_migration` + Vercel). **The ONE deferred piece: an in-web photo GALLERY**
+— photos are the #1 client trust driver but none exist yet (they come from the parked Flutter
+field app, which does GPS-verified in-app capture); the portal already shows the photo COUNT,
+so build the gallery once the mobile app feeds real photos.
+
+**NEXT:** founder eyeballs the new client surfaces (milestone strip, /sales, portal buyer/
+partner views, dashboard) on cloud; then pilot-test Areas 6–8 (portal → Ask+AI →
+notifications) → break-it pass → the mobile phase (Area 4 daily-reports+photos, the photo
+gallery, and the mobile "mark done" flow).
 
 **BOQ AREA: CLOSED (2026-07-31).** The full pipeline — upload (any format) → live
 progress stepper → Set-up-from-this-bill (stages/materials/mixes/types/prices) →

@@ -455,4 +455,35 @@ logged here so the founder can review drift. Newest at the bottom.
     type_boq_items + stage-cost basis (so manually-built recipes and the AC-8 test — which
     have no work items — stay byte-for-byte unchanged); unstaged work-item cost folds into
     the type's first stage so nothing is dropped. Both planner functions read the view.
-    Verified: Type B feasibility now = ₦288,805,238 = recipe.
+    Verified: Type B feasibility now = the recipe cost.
+61. **Standardized client milestones (pilot, 2026-08-02; research-backed).** The 15 QS
+    stages are too granular for clients; roll them into ~6 recognizable milestones
+    (Foundation, Structure, Roofing, Walls & openings, Services/MEP, Finishes) + Handover
+    — matches BuildWatch (a Nigerian construction proptech) and global practice. `milestone`
+    lives on `type_stages` (auto-mapped from the stage name by `fn__default_milestone` via a
+    BEFORE-INSERT trigger + backfill; editable via `fn_set_type_stage_milestone`, manager-
+    gated). `building_milestones` derives done/in_progress/not_started per building from stage
+    completion — no new source of truth. Overall client % stays COST-WEIGHTED (earned value,
+    not stage count) per research ("activities are not equal"). Milestone order = the earliest
+    stage sequence in each (so "Services" trails "Finishes" when the bill orders M&E last).
+62. **Sales & milestone/time-linked payments (pilot, 2026-08-02; money path).** Two plan
+    models, research-grounded: a BUYER buys a building on a MILESTONE-linked plan (default
+    20/15/15/15/15/20; a tranche is due when its milestone is reached), a PARTNER / master
+    developer invests project-wide on a TIME-PHASED plan (default 30% + 4x17.5% at months
+    0/6/12/18/24; due when the month arrives). Tables `sales` / `payment_tranches` / `payments`
+    (append-only, idempotent on idempotency_key, voidable, ON DELETE RESTRICT, NO client write
+    policy - Rule 1); `fn_create_sale` seeds the default tranches, `fn_record_payment` /
+    `fn_void_payment` are the only write paths. Payments fill tranches in ORDER (waterfall);
+    `payment_schedule` derives paid/part/unpaid + is_due; `sale_payment_summary` gives
+    paid/outstanding.
+63. **Client portal v2 - two audiences + email (pilot, 2026-08-03).** A portal link carries
+    an audience: a BUYER link is scoped to one building (progress %, milestone stepper,
+    milestone-linked payment schedule with due flags, photo count - NO project money), a
+    PARTNER link is project-wide (progress, homes-by-milestone, budget/spent, sales/collected,
+    photos). `fn_portal_view` branches on `link_type` and STILL hand-selects safe columns only
+    - no supplier names, unit prices, or worker data reach either view (F-13.6). Links deliver
+    by email (Resend) or phone via the notifications abstraction. Research: photos are the #1
+    trust driver and the field app's GPS-verified in-app-only capture already matches best
+    practice (BuildWatch); the in-web photo GALLERY is the remaining piece, deferred until the
+    mobile app feeds real photos (the portal already surfaces the count). What clients are owed
+    = progress + proof, not a spend breakdown (that stays an internal/optional view).
