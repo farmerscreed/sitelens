@@ -3,15 +3,46 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { IconLogo, IconAlert, IconBoard, IconReceipt } from "@/components/icons";
 
-type View = {
-  project: string;
-  progress: { buildings_total: number; buildings_done: number; pct: number };
-  spend: { budget: number; spent: number; committed: number };
-  photo_count: number;
-  line_items: { category: string; amount: number }[] | null;
+type Milestone = { milestone: string; status: string };
+type Tranche = { label: string; amount: number; status: string; due: boolean };
+type BuyerView = {
+  view: "buyer"; project: string; building_code: string; progress_pct: number;
+  milestones: Milestone[]; photo_count: number;
+  payment: { total: number; paid: number; outstanding: number; schedule: Tranche[] } | null;
 };
+type PartnerView = {
+  view: "partner"; project: string;
+  progress: { buildings_total: number; buildings_done: number; pct: number };
+  units_by_milestone: { milestone: string; reached: number; total: number }[];
+  financials: { budget: number; spent: number };
+  sales: { units_sold: number; contract_value: number; collected: number };
+  photo_count: number;
+};
+type View = BuyerView | PartnerView;
 
-const naira = (n: number) => "₦" + Number(n).toLocaleString();
+const naira = (n: number) => "₦" + Math.round(Number(n)).toLocaleString();
+
+function Stepper({ milestones }: { milestones: Milestone[] }) {
+  const items = [...milestones, { milestone: "Handover", status: "not_started" }];
+  return (
+    <div className="mt-4 flex items-start gap-1 overflow-x-auto pb-1">
+      {items.map((ms, i) => (
+        <div key={ms.milestone} className="flex items-center gap-1">
+          <div className="flex min-w-[76px] flex-col items-center gap-1.5 px-1">
+            <span className={`grid h-8 w-8 place-items-center rounded-full text-xs font-bold ${
+              ms.status === "done" ? "bg-emerald-400/20 text-emerald-300 ring-1 ring-emerald-400/40"
+              : ms.status === "in_progress" ? "bg-accent-500/20 text-accent-300 ring-1 ring-accent-400/50 shadow-glow"
+              : "bg-white/[0.04] text-[#5b6473] ring-1 ring-white/[0.08]"}`}>
+              {ms.status === "done" ? "✓" : i + 1}
+            </span>
+            <span className={`text-center text-[11px] leading-tight ${ms.status === "not_started" ? "text-[#5b6473]" : "text-[#c7cedb]"}`}>{ms.milestone}</span>
+          </div>
+          {i < items.length - 1 && <span className={`mt-4 h-0.5 w-4 shrink-0 rounded ${ms.status === "done" ? "bg-emerald-400/40" : "bg-white/[0.08]"}`} />}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export function PortalView({ token }: { token: string }) {
   const supabase = createClient();
@@ -36,40 +67,79 @@ export function PortalView({ token }: { token: string }) {
           <span className="grid h-9 w-9 place-items-center rounded-xl bg-accent-sheen text-ink-950"><IconLogo className="h-5 w-5" /></span>
           <span className="text-sm font-semibold text-white">Site<span className="gradient-text">Lens</span></span>
         </div>
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-white">{view.project}</h1>
-          <p className="text-sm text-[#8b95a7]">Project update</p>
-        </div>
 
-        <section className="card">
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#8b95a7]"><IconBoard className="h-4 w-4 text-accent-300" />Progress</div>
-          <div className="mt-2 text-4xl font-semibold text-white">{view.progress.pct}%</div>
-          <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/[0.07]">
-            <div className="h-full rounded-full bg-accent-sheen" style={{ width: `${view.progress.pct}%` }} />
-          </div>
-          <div className="mt-2 text-sm text-[#8b95a7]">{view.progress.buildings_done} of {view.progress.buildings_total} buildings complete</div>
-        </section>
-
-        <section className="card">
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#8b95a7]"><IconReceipt className="h-4 w-4 text-accent-300" />Spend vs budget</div>
-          <dl className="mt-3 grid grid-cols-3 gap-2 text-sm">
-            <div><dt className="text-[#8b95a7]">Budget</dt><dd className="mt-0.5 font-mono text-white">{naira(view.spend.budget)}</dd></div>
-            <div><dt className="text-[#8b95a7]">Spent</dt><dd className="mt-0.5 font-mono text-white">{naira(view.spend.spent)}</dd></div>
-            <div><dt className="text-[#8b95a7]">Committed</dt><dd className="mt-0.5 font-mono text-white">{naira(view.spend.committed)}</dd></div>
-          </dl>
-          {view.line_items && (
-            <div className="mt-3 overflow-x-auto">
-              <table className="table-base">
-                <tbody>
-                  {view.line_items.map((l, k) => (
-                    <tr key={k}><td className="text-[#c7cedb]">{l.category ?? "—"}</td><td className="text-right font-mono">{naira(l.amount)}</td></tr>
-                  ))}
-                </tbody>
-              </table>
+        {view.view === "buyer" ? (
+          <>
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight text-white">{view.building_code}</h1>
+              <p className="text-sm text-[#8b95a7]">{view.project} · your home</p>
             </div>
-          )}
-        </section>
-        <p className="text-center text-sm text-[#8b95a7]">{view.photo_count} site photos on file.</p>
+            <section className="card">
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#8b95a7]"><IconBoard className="h-4 w-4 text-accent-300" />Progress</div>
+              <div className="mt-2 text-4xl font-semibold text-white">{view.progress_pct}%</div>
+              <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/[0.07]"><div className="h-full rounded-full bg-accent-sheen" style={{ width: `${view.progress_pct}%` }} /></div>
+              <Stepper milestones={view.milestones} />
+            </section>
+            {view.payment && (
+              <section className="card">
+                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#8b95a7]"><IconReceipt className="h-4 w-4 text-accent-300" />Your payments</div>
+                <dl className="mt-3 grid grid-cols-3 gap-2 text-sm">
+                  <div><dt className="text-[#8b95a7]">Price</dt><dd className="mt-0.5 font-mono text-white">{naira(view.payment.total)}</dd></div>
+                  <div><dt className="text-[#8b95a7]">Paid</dt><dd className="mt-0.5 font-mono text-emerald-300">{naira(view.payment.paid)}</dd></div>
+                  <div><dt className="text-[#8b95a7]">Balance</dt><dd className="mt-0.5 font-mono text-white">{naira(view.payment.outstanding)}</dd></div>
+                </dl>
+                <div className="mt-4 space-y-1.5">
+                  {view.payment.schedule.map((t, k) => (
+                    <div key={k} className="flex items-center justify-between rounded-lg bg-white/[0.02] px-3 py-2 text-sm">
+                      <span className="text-[#c7cedb]">{t.label}
+                        {t.status === "paid" ? <span className="ml-2 badge badge-green">paid</span>
+                          : t.due ? <span className="ml-2 badge badge-accent">due</span>
+                          : <span className="ml-2 text-xs text-[#5b6473]">upcoming</span>}
+                      </span>
+                      <span className="font-mono text-white">{naira(t.amount)}</span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+            <p className="text-center text-sm text-[#8b95a7]">{view.photo_count} site photos on file.</p>
+          </>
+        ) : (
+          <>
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight text-white">{view.project}</h1>
+              <p className="text-sm text-[#8b95a7]">Partner update</p>
+            </div>
+            <section className="card">
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#8b95a7]"><IconBoard className="h-4 w-4 text-accent-300" />Overall progress</div>
+              <div className="mt-2 text-4xl font-semibold text-white">{view.progress.pct}%</div>
+              <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/[0.07]"><div className="h-full rounded-full bg-accent-sheen" style={{ width: `${view.progress.pct}%` }} /></div>
+              <div className="mt-2 text-sm text-[#8b95a7]">{view.progress.buildings_done} of {view.progress.buildings_total} homes complete</div>
+            </section>
+            <section className="card">
+              <div className="text-xs font-semibold uppercase tracking-wider text-[#8b95a7]">Homes by milestone</div>
+              <div className="mt-3 space-y-2">
+                {view.units_by_milestone.map((m, k) => (
+                  <div key={k}>
+                    <div className="flex items-center justify-between text-sm"><span className="text-[#c7cedb]">{m.milestone}</span><span className="font-mono text-[#8b95a7]">{m.reached}/{m.total}</span></div>
+                    <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/[0.07]"><div className="h-full rounded-full bg-accent-sheen" style={{ width: `${m.total ? (m.reached / m.total) * 100 : 0}%` }} /></div>
+                  </div>
+                ))}
+              </div>
+            </section>
+            <section className="card">
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#8b95a7]"><IconReceipt className="h-4 w-4 text-accent-300" />Financials</div>
+              <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                <div><dt className="text-[#8b95a7]">Budget</dt><dd className="mt-0.5 font-mono text-white">{naira(view.financials.budget)}</dd></div>
+                <div><dt className="text-[#8b95a7]">Spent</dt><dd className="mt-0.5 font-mono text-white">{naira(view.financials.spent)}</dd></div>
+                <div><dt className="text-[#8b95a7]">Homes sold</dt><dd className="mt-0.5 font-mono text-white">{view.sales.units_sold}</dd></div>
+                <div><dt className="text-[#8b95a7]">Contract value</dt><dd className="mt-0.5 font-mono text-white">{naira(view.sales.contract_value)}</dd></div>
+                <div><dt className="text-[#8b95a7]">Collected</dt><dd className="mt-0.5 font-mono text-emerald-300">{naira(view.sales.collected)}</dd></div>
+              </dl>
+            </section>
+            <p className="text-center text-sm text-[#8b95a7]">{view.photo_count} site photos on file.</p>
+          </>
+        )}
       </div>
     );
   }

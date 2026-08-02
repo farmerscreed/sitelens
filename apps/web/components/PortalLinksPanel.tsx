@@ -2,35 +2,40 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { IconPlus, IconCheck, IconAlert, IconLink } from "@/components/icons";
+import { IconCheck, IconAlert, IconLink } from "@/components/icons";
 
 type Link = {
-  id: string; recipient_name: string | null; recipient_phone: string | null;
-  show_line_items: boolean; expires_at: string; revoked_at: string | null;
-  created_at: string; last_opened: string | null;
+  id: string; recipient_name: string | null; recipient_phone: string | null; recipient_email: string | null;
+  link_type: string; building_id: string | null;
+  expires_at: string; revoked_at: string | null; created_at: string; last_opened: string | null;
 };
+type Building = { id: string; code: string };
 
-export function PortalLinksPanel({ projectId, links }: { projectId: string; links: Link[] }) {
+export function PortalLinksPanel({ projectId, links, buildings }: { projectId: string; links: Link[]; buildings: Building[] }) {
   const router = useRouter();
   const supabase = createClient();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [lineItems, setLineItems] = useState(false);
+  const [email, setEmail] = useState("");
+  const [type, setType] = useState<"buyer" | "partner">("partner");
+  const [bld, setBld] = useState(buildings[0]?.id ?? "");
   const [busy, setBusy] = useState(false);
   const [created, setCreated] = useState<{ url: string; pin: string } | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const codeOf = new Map(buildings.map((b) => [b.id, b.code]));
 
   async function create() {
     setBusy(true); setErr(null); setCreated(null);
     const { data, error } = await supabase.rpc("fn_create_portal_link", {
-      p_project: projectId, p_recipient_name: name, p_recipient_phone: phone, p_show_line_items: lineItems,
+      p_project: projectId, p_recipient_name: name, p_recipient_phone: phone.trim() || null,
+      p_link_type: type, p_building: type === "buyer" ? (bld || null) : null, p_email: email.trim() || null,
     });
     setBusy(false);
     if (error) return setErr(error.message);
     const origin = typeof window !== "undefined" ? window.location.origin : "";
     setCreated({ url: `${origin}/portal/${data.token}`, pin: data.pin });
-    setName(""); setPhone(""); router.refresh();
+    setName(""); setPhone(""); setEmail(""); router.refresh();
   }
   async function revoke(id: string) {
     setBusy(true);
@@ -41,18 +46,16 @@ export function PortalLinksPanel({ projectId, links }: { projectId: string; link
   function copy() {
     if (created) { navigator.clipboard?.writeText(`${created.url}\nPIN: ${created.pin}`); setCopied(true); setTimeout(() => setCopied(false), 1500); }
   }
-
-  const statusBadge = (s: string) =>
-    s === "active" ? "badge-green" : s === "revoked" ? "badge-red" : "badge-muted";
+  const statusBadge = (s: string) => (s === "active" ? "badge-green" : s === "revoked" ? "badge-red" : "badge-muted");
 
   return (
     <div className="space-y-5">
       <div className="card p-0 overflow-hidden">
         <h2 className="px-5 pt-5 text-sm font-semibold text-white">Shared links</h2>
         <div className="mt-3 overflow-x-auto">
-          <table className="table-base">
+          <table className="table-base min-w-[680px]">
             <thead>
-              <tr><th>Recipient</th><th>Line items</th><th>Last opened</th><th>Status</th><th className="text-right">Actions</th></tr>
+              <tr><th>Recipient</th><th>View</th><th>Last opened</th><th>Status</th><th className="text-right">Actions</th></tr>
             </thead>
             <tbody>
               {links.map((l) => {
@@ -60,8 +63,8 @@ export function PortalLinksPanel({ projectId, links }: { projectId: string; link
                 const status = l.revoked_at ? "revoked" : expired ? "expired" : "active";
                 return (
                   <tr key={l.id}>
-                    <td className="font-medium text-white">{l.recipient_name ?? "—"}</td>
-                    <td className="text-[#8b95a7]">{l.show_line_items ? "shown" : "hidden"}</td>
+                    <td className="font-medium text-white">{l.recipient_name ?? "—"}<div className="text-[10px] text-[#5b6473]">{l.recipient_email ?? l.recipient_phone ?? ""}</div></td>
+                    <td className="text-[#8b95a7]">{l.link_type === "buyer" ? `buyer · ${l.building_id ? codeOf.get(l.building_id) ?? "house" : "house"}` : "partner · project"}</td>
                     <td className="whitespace-nowrap text-[#8b95a7]">{l.last_opened ? new Date(l.last_opened).toLocaleString() : "never"}</td>
                     <td><span className={`badge ${statusBadge(status)}`}>{status}</span></td>
                     <td className="text-right">
@@ -78,22 +81,38 @@ export function PortalLinksPanel({ projectId, links }: { projectId: string; link
 
       <section className="card max-w-xl">
         <h2 className="text-sm font-semibold text-white">New portal link</h2>
+        <p className="mt-0.5 text-xs text-[#8b95a7]">Buyer → one house (milestones, photos, payments). Partner → the whole project (progress, financials, sales).</p>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <div>
+            <label className="label">View</label>
+            <select className="select" value={type} onChange={(e) => setType(e.target.value as "buyer" | "partner")}>
+              <option value="partner">Partner (whole project)</option>
+              <option value="buyer">Buyer (one house)</option>
+            </select>
+          </div>
+          {type === "buyer" && (
+            <div>
+              <label className="label">House</label>
+              <select className="select" value={bld} onChange={(e) => setBld(e.target.value)}>
+                {buildings.map((b) => <option key={b.id} value={b.id}>{b.code}</option>)}
+                {buildings.length === 0 && <option value="">No buildings</option>}
+              </select>
+            </div>
+          )}
           <div>
             <label className="label">Recipient name</label>
             <input className="input" placeholder="Client name" value={name} onChange={(e) => setName(e.target.value)} />
           </div>
           <div>
-            <label className="label">Phone</label>
+            <label className="label">Email</label>
+            <input className="input" placeholder="client@email.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Phone <span className="text-[#5b6473]">(optional)</span></label>
             <input className="input" placeholder="+234…" value={phone} onChange={(e) => setPhone(e.target.value)} />
           </div>
         </div>
-        <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm text-[#c7cedb]">
-          <input type="checkbox" checked={lineItems} onChange={(e) => setLineItems(e.target.checked)}
-            className="h-4 w-4 rounded border-white/20 bg-transparent accent-accent-500" />
-          Show itemised line items to the client
-        </label>
-        <button className="btn btn-primary mt-4" disabled={busy || !name || !phone} onClick={create}>
+        <button className="btn btn-primary mt-4" disabled={busy || !name || (type === "buyer" && !bld) || (!email.trim() && !phone.trim())} onClick={create}>
           <IconLink className="h-4 w-4" />Create link
         </button>
 

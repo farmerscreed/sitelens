@@ -12,16 +12,13 @@ export default async function PortalLinksPage({ searchParams }: { searchParams: 
   const { data: projects } = await supabase.from("projects").select("id,name").is("archived_at", null).order("name");
   const projectId = activeProjectId(searchParams, projects ?? []);
 
-  const { data: links } = await supabase
-    .from("portal_links")
-    .select("id,recipient_name,recipient_phone,show_line_items,expires_at,revoked_at,created_at")
-    .eq("project_id", projectId)
-    .order("created_at", { ascending: false });
-
-  const { data: accesses } = await supabase
-    .from("portal_access_log")
-    .select("link_id,accessed_at,pin_success")
-    .order("accessed_at", { ascending: false });
+  const [{ data: links }, { data: accesses }, { data: buildings }] = await Promise.all([
+    supabase.from("portal_links")
+      .select("id,recipient_name,recipient_phone,recipient_email,link_type,building_id,expires_at,revoked_at,created_at")
+      .eq("project_id", projectId).order("created_at", { ascending: false }),
+    supabase.from("portal_access_log").select("link_id,accessed_at,pin_success").order("accessed_at", { ascending: false }),
+    supabase.from("buildings").select("id,code").eq("project_id", projectId).is("archived_at", null).order("code"),
+  ]);
 
   const lastOpened = new Map<string, string>();
   for (const a of accesses ?? []) if (a.pin_success && !lastOpened.has(a.link_id)) lastOpened.set(a.link_id, a.accessed_at);
@@ -40,6 +37,7 @@ export default async function PortalLinksPage({ searchParams }: { searchParams: 
       <PortalLinksPanel
         projectId={projectId}
         links={(links ?? []).map((l) => ({ ...l, last_opened: lastOpened.get(l.id) ?? null }))}
+        buildings={buildings ?? []}
       />
     </div>
   );
