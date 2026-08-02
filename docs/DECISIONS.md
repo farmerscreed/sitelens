@@ -443,3 +443,16 @@ logged here so the founder can review drift. Newest at the bottom.
     average was hiding per-house overrun, so the old project-wide "usage vs plan" table
     on the Materials page was retired; **procurement = project/batch**. reorder + all
     plans now also ignore archived buildings (ties DECISIONS #57).
+60. **Planner on the true-cost engine (pilot, 2026-08-02).** `fn_compute_feasibility`
+    and `fn_max_delivery` costed each stage as Σ(type_boq_items.qty × current_price) +
+    type_stage_costs — direct-supply materials + non-material stage costs only. For a
+    work-item/mix recipe (Terrace Type B) that is a ~5× undercount (₦60.5M vs the true
+    ₦288.8M): labour, plant, mix-derived materials and QS-rate lines are all missing, so
+    every plan figure (total, per-period, peaks, funding gap, max-delivery) was far too
+    low — the planner was unusable for real cash planning. Fix: a unified `type_stage_cost`
+    view = work-item `est_cost` per stage (in-scope; mixes + labour + QS-rate fallback,
+    same basis as DECISIONS #58/#59) where a type has work items, else the legacy
+    type_boq_items + stage-cost basis (so manually-built recipes and the AC-8 test — which
+    have no work items — stay byte-for-byte unchanged); unstaged work-item cost folds into
+    the type's first stage so nothing is dropped. Both planner functions read the view.
+    Verified: Type B feasibility now = ₦288,805,238 = recipe.

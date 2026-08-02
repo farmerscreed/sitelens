@@ -35,10 +35,18 @@ completed a stage (board dot → Frame). **Area 2 (Materials store) — DONE:** 
 verified honest (IN/OUT, 0 negative, spent moves); then two founder findings shipped —
 work-done dropdown grouped by stage, and the big one: **materials unified on the take-off
 + split by grain** (DECISIONS #59) — store=project pool, variance=per building, procurement
-=per batch; the misleading project-wide usage-vs-plan table is retired. **44 migrations, 27
-suites green.** **NEXT: Area 3 — Expenses & approvals** (create, approve under/over the
-250k threshold, void; confirm AC-11 in real use; spends land on the building money card),
-then areas 4–9 (daily reports+photos → planner → portal → Ask → notifications → break-it).
+=per batch; the misleading project-wide usage-vs-plan table is retired.
+**Area 3 (Expenses & approvals) — DONE:** create/approve/void verified; two fixes shipped
+— expenses can now be tagged to a building (land on its money card) + a "Spend on this
+building" itemised breakdown on the building page. **Area 4 (Daily reports + photos) —
+DEFERRED to the mobile phase** (no web surface; it's the Flutter field app's job, which
+is parked). **Area 5 (Planner) — cost basis FIXED (DECISIONS #60):** feasibility +
+max-delivery now cost from the true-cost engine (`type_stage_cost` view), not
+type_boq_items — was undercounting Type B ~5× (₦60.5M → ₦288.8M, verified on cloud).
+**45 migrations, 29 suites green.** **NEXT: run the Area 5 checklist on real numbers**
+(create a Type-B scenario → cash-flow timeline/peaks/total, staggering lowers peak,
+max-delivery, live re-cost), then areas 6–8 (portal → Ask+AI → notifications) → break-it,
+then the mobile phase (Area 4 + mobile "mark done" flow).
 
 **BOQ AREA: CLOSED (2026-07-31).** The full pipeline — upload (any format) → live
 progress stepper → Set-up-from-this-bill (stages/materials/mixes/types/prices) →
