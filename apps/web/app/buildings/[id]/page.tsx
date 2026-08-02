@@ -36,7 +36,7 @@ export default async function BuildingDetail({ params }: { params: { id: string 
     .from("buildings").select("id,code,status,building_type_id,current_stage_id,archived_at").eq("id", params.id).single();
   if (!b) redirect("/board");
 
-  const [{ data: stages }, { data: progress }, { data: materials }, { data: rva }, { data: evRows }, { data: money }, { data: finishRows }, { data: priceRows }] = await Promise.all([
+  const [{ data: stages }, { data: progress }, { data: materials }, { data: rva }, { data: evRows }, { data: money }, { data: finishRows }, { data: priceRows }, { data: msData }] = await Promise.all([
     supabase.from("type_stages").select("id,name,sequence").eq("building_type_id", b.building_type_id).order("sequence"),
     supabase.from("building_stage_progress").select("stage_id,status,completed_at").eq("building_id", b.id),
     supabase.from("materials_catalog").select("id,name,unit"),
@@ -51,7 +51,15 @@ export default async function BuildingDetail({ params }: { params: { id: string 
     supabase.from("material_prices").select("material_id,unit_price,effective_from")
       .lte("effective_from", new Date().toISOString().slice(0, 10))
       .order("effective_from", { ascending: false }),
+    supabase.from("building_milestones").select("milestone,milestone_order,status").eq("building_id", params.id),
   ]);
+
+  // Client milestones (the recognizable phases) + Handover derived from completion.
+  type MsRow = { milestone: string; milestone_order: number; status: string };
+  const milestones = [
+    ...((msData ?? []) as MsRow[]).filter((r) => r.milestone !== "Other").sort((a, b) => a.milestone_order - b.milestone_order),
+    { milestone: "Handover", milestone_order: 9999, status: b.status === "done" ? "done" : "not_started" },
+  ];
 
   // Excluded (by-others) lines on this recipe + this building's variations, and the
   // actual spend tagged to this building (materials issued OUT + approved expenses).
@@ -145,6 +153,34 @@ export default async function BuildingDetail({ params }: { params: { id: string 
           <ArchiveBuildingButton buildingId={b.id} code={b.code} archived={b.archived_at != null} />
         </div>
       </header>
+
+      {/* Milestones — the client-facing progress phases (Foundation → Handover). */}
+      {milestones.length > 1 && (
+        <section className="card">
+          <div className="flex items-baseline justify-between">
+            <h2 className="text-sm font-semibold text-white">Milestones</h2>
+            <span className="text-xs text-[#8b95a7]">{milestones.filter((x) => x.status === "done").length}/{milestones.length} reached</span>
+          </div>
+          <div className="mt-4 flex items-start gap-1 overflow-x-auto pb-1">
+            {milestones.map((ms, i) => (
+              <div key={ms.milestone} className="flex items-center gap-1">
+                <div className="flex min-w-[80px] flex-col items-center gap-1.5 px-1">
+                  <span className={`grid h-8 w-8 place-items-center rounded-full text-xs font-bold ${
+                    ms.status === "done" ? "bg-emerald-400/20 text-emerald-300 ring-1 ring-emerald-400/40"
+                    : ms.status === "in_progress" ? "bg-accent-500/20 text-accent-300 ring-1 ring-accent-400/50 shadow-glow"
+                    : "bg-white/[0.04] text-[#5b6473] ring-1 ring-white/[0.08]"}`}>
+                    {ms.status === "done" ? "✓" : i + 1}
+                  </span>
+                  <span className={`text-center text-[11px] leading-tight ${ms.status === "not_started" ? "text-[#5b6473]" : "text-[#c7cedb]"}`}>{ms.milestone}</span>
+                </div>
+                {i < milestones.length - 1 && (
+                  <span className={`mt-4 h-0.5 w-5 shrink-0 rounded ${ms.status === "done" ? "bg-emerald-400/40" : "bg-white/[0.08]"}`} />
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Money card — this building as a financial event, judged against its own
           budget photo (the recipe stays a live document). */}
