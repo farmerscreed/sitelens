@@ -12,7 +12,7 @@ DECLARE
   user_a uuid := 'a1111111-1111-1111-1111-111111111111';
   cement uuid := 'a7777777-7777-7777-7777-777777777777';   -- bag @ 9500 (seed)
   asm uuid; typ uuid; stg uuid; imp uuid; r1 uuid; wi uuid;
-  plan uuid; planM uuid; v numeric; fails int := 0;
+  plan uuid; planM uuid; ln uuid; v numeric; fails int := 0;
 BEGIN
   PERFORM set_config('request.jwt.claims', jsonb_build_object('sub', user_a)::text, true);
 
@@ -48,9 +48,18 @@ BEGIN
   v := (fn_max_delivery(planM)->>'multiplier')::numeric;
   IF v <> 4 THEN RAISE WARNING 'max-delivery multiplier=% (exp 4)', v; fails:=fails+1; END IF;
 
+  -- Delete a plan line — it's removed; a cross-org caller cannot.
+  SELECT id INTO ln FROM plan_lines WHERE plan_id = plan LIMIT 1;
+  PERFORM fn_delete_plan_line(plan, ln);
+  IF EXISTS (SELECT 1 FROM plan_lines WHERE id = ln) THEN RAISE WARNING 'plan line not deleted'; fails:=fails+1; END IF;
+  PERFORM set_config('request.jwt.claims', jsonb_build_object('sub','b2222222-2222-2222-2222-222222222222')::text, true);
+  BEGIN PERFORM fn_delete_plan_line(planM, (SELECT id FROM plan_lines WHERE plan_id=planM LIMIT 1));
+    RAISE WARNING 'cross-org deleted a plan line'; fails:=fails+1;
+  EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+
   PERFORM set_config('request.jwt.claims', NULL, true);
   IF fails > 0 THEN RAISE EXCEPTION 'PLANNER-TRUECOST FAILED: % assertion(s)', fails; END IF;
-  RAISE NOTICE 'PLANNER-TRUECOST PASS: feasibility + max-delivery cost from est_cost (mixes+labour), not type_boq_items.';
+  RAISE NOTICE 'PLANNER-TRUECOST PASS: feasibility + max-delivery cost from est_cost (mixes+labour) not type_boq_items; plan-line delete + authz.';
 END $$;
 ROLLBACK;
 SELECT 'Planner true-cost: PASS' AS result;
