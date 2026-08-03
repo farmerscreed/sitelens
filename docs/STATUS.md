@@ -70,6 +70,17 @@ raw findings under subagents/workflows/wf_e9e89977*):
 - **Dashboard redesigned** — portfolio-complete hero, live Homes/Homes-sold/Collected, a
   "Portfolio by milestone" rollup.
 
+**PHASE D — PHOTO GALLERY SHIPPED (2026-08-03).** Photos are now addressable per
+building: `media.building_id` + `fn_register_media(p_building)` (old signature
+dropped; back-fill from each report's building — the founder's 3 test photos now
+sit on PE009 on cloud). Field app sends its per-photo house tag. Web:
+`BuildingGallery` on the building page — RLS-scoped, batch-signed 15-min URLs,
+newest-first grid, capture dates, "check location" flag for out-of-geofence/mock
+shots. `media_building` suite; 55 migrations, all green. ALSO: mobile v1 scope
+CLOSED + full visual redesign + persistent APK signing (DECISIONS #67) — updates
+now install over the top. REMAINING for photos: portal buyer/partner photo strips
+(needs service-role signing for anon portal — decide approach), originals purge.
+
 **FIELD APP TESTED LIVE ON THE FOUNDER'S PHONE (2026-08-03) — all 3 jobs PASS
 against cloud:** daily report (3 stamped photos → report row + 3 media + 9 storage
 objects verified), stage tick (PE009 Frame done, source='field', board → Upper
