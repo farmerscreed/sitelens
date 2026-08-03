@@ -10,7 +10,7 @@ import {
   IconClose, IconLogout, IconChevron, IconBuilding, IconUsers,
 } from "@/components/icons";
 
-type NavItem = { href: string; label: string; icon: (p: { className?: string }) => JSX.Element; group: string };
+type NavItem = { href: string; label: string; icon: (p: { className?: string }) => JSX.Element; group: string; adminOnly?: boolean };
 
 const NAV: NavItem[] = [
   { href: "/dashboard", label: "Overview", icon: IconGrid, group: "Command" },
@@ -29,6 +29,7 @@ const NAV: NavItem[] = [
   { href: "/sales", label: "Sales & payments", icon: IconReceipt, group: "Clients" },
   { href: "/portal-links", label: "Portal links", icon: IconLink, group: "Clients" },
   { href: "/notifications", label: "Notifications", icon: IconBell, group: "Clients" },
+  { href: "/team", label: "Team", icon: IconUsers, group: "Organisation", adminOnly: true },
 ];
 
 type Org = { org_id: string; org_name: string; role: string; is_active_org: boolean };
@@ -63,8 +64,10 @@ export function Shell({ children }: { children: React.ReactNode }) {
   if (isBare(pathname)) return <>{children}</>;
 
   const active = orgs.find((o) => o.is_active_org);
+  const isAdmin = active?.role === "admin";
+  const visibleNav = NAV.filter((n) => !n.adminOnly || isAdmin);
   const current = NAV.find((n) => pathname.startsWith(n.href));
-  const groups = Array.from(new Set(NAV.map((n) => n.group)));
+  const groups = Array.from(new Set(visibleNav.map((n) => n.group)));
 
   async function switchOrg(orgId: string) {
     if (busy || orgId === active?.org_id) return;
@@ -95,7 +98,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <div key={g}>
             <p className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#5b6473]">{g}</p>
             <div className="space-y-0.5">
-              {NAV.filter((n) => n.group === g).map((n) => {
+              {visibleNav.filter((n) => n.group === g).map((n) => {
                 const on = pathname.startsWith(n.href);
                 const Icon = n.icon;
                 return (
