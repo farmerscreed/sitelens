@@ -70,6 +70,21 @@ raw findings under subagents/workflows/wf_e9e89977*):
 - **Dashboard redesigned** — portfolio-complete hero, live Homes/Homes-sold/Collected, a
   "Portfolio by milestone" rollup.
 
+**MOBILE Phase B+C — FIELD APP BUILT, CI GREEN, APK PRODUCED (2026-08-03).**
+The full engineer app on the M4 offline scaffold (`apps/mobile/`): email-OTP login
+(org-claim bootstrap; Termii later), Today home (report status + "N to send" chip),
+3-step report flow (house chips → in-app camera w/ burned-in GPS/time/house stamp,
+min 3 photos → crew steppers prefilled from yesterday → SEND), mark-done ticks
+(fn_complete_stage source='field', optimistic), materials IN/OUT. Media pipeline
+thumb→display→register→original-on-WiFi; report held until its photos register.
+**Build/verify = GitHub Actions** (`.github/workflows/mobile-apk.yml`): flutter
+analyze green, release APK artifact `sitelens-field-app` (~29 MB) on every push
+touching apps/mobile. ⚠️ Repo secrets SUPABASE_URL/SUPABASE_ANON_KEY not yet set
+(classifier blocked `gh secret set`) — until the founder adds them + re-runs, the
+APK points at the emulator localhost. Provisioning: engineers need an auth user +
+'engineer' membership (create_user=false on OTP). Remaining v1.x nits in the
+mobile README (originals purge, weather auto-fill, Termii).
+
 **MOBILE PHASE STARTED — Phase A (server field ops) BUILT & DEPLOYED (2026-08-03).**
 The field-app plan is agreed with the founder (brainstorm doc'd in DECISIONS #65):
 the app is for the SITE ENGINEER only (Android 8+, APK sideload, email OTP now /
