@@ -131,15 +131,34 @@ class _CameraScreenState extends State<CameraScreen> {
                     ),
                 ]),
               const SizedBox(height: 12),
-              SizedBox(
-                width: 84,
-                height: 84,
-                child: FilledButton(
-                  style: FilledButton.styleFrom(shape: const CircleBorder(), padding: EdgeInsets.zero),
-                  onPressed: taking ? null : _shoot,
-                  child: taking
-                      ? const CircularProgressIndicator(color: Colors.black)
-                      : const Icon(Icons.photo_camera, size: 38),
+              Container(
+                width: 88,
+                height: 88,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: kAccentSheen,
+                  boxShadow: glow(kAccent, strength: 0.6, blur: 30),
+                ),
+                padding: const EdgeInsets.all(5),
+                child: Container(
+                  decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.black),
+                  padding: const EdgeInsets.all(3),
+                  child: Material(
+                    color: Colors.transparent,
+                    shape: const CircleBorder(),
+                    clipBehavior: Clip.antiAlias,
+                    child: InkWell(
+                      onTap: taking ? null : _shoot,
+                      child: Ink(
+                        decoration: const BoxDecoration(shape: BoxShape.circle, gradient: kAccentSheen),
+                        child: Center(
+                          child: taking
+                              ? const CircularProgressIndicator(color: Colors.black)
+                              : const Icon(Icons.photo_camera_rounded, size: 36, color: Colors.black),
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ]),

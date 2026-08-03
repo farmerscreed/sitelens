@@ -7,6 +7,7 @@ import '../sync/sync_worker.dart';
 import 'report_flow_screen.dart';
 import 'mark_done_screen.dart';
 import 'materials_screen.dart';
+import 'widgets.dart';
 
 // The whole home screen: today's report status (the one thing that matters),
 // two quick actions, and a quiet sync chip. No menus, no dashboard.
@@ -65,117 +66,180 @@ class _TodayScreenState extends State<TodayScreen> {
     await _refreshStatus();
   }
 
+  String get _dateLine {
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final now = DateTime.now();
+    return '${days[now.weekday - 1]}, ${now.day} ${months[now.month - 1]}';
+  }
+
   @override
   Widget build(BuildContext context) {
     final sent = report != null && report!.synced;
     final saved = report != null && !report!.synced;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('SiteLens'),
-        actions: [
-          if (pending > 0)
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: Chip(
-                label: Text('$pending to send', style: const TextStyle(fontSize: 13)),
-                avatar: const Icon(Icons.cloud_upload_outlined, size: 18, color: kAccent),
-              ),
-            ),
-          IconButton(
-            icon: const Icon(Icons.logout, color: kMuted),
-            tooltip: 'Sign out',
-            onPressed: () async => widget.onSignOut(),
-          ),
-        ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: () async { await _load(); await widget.sync.drain(); await _refreshStatus(); },
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            if (projects.length > 1) ...[
-              DropdownButtonFormField<String>(
-                value: projectId,
-                decoration: const InputDecoration(labelText: 'Project'),
-                dropdownColor: kInkCard,
-                items: [
-                  for (final p in projects)
-                    DropdownMenuItem(value: p['id'] as String,
-                        child: Text(p['name'] as String, style: const TextStyle(color: Colors.white))),
-                ],
-                onChanged: (v) async {
-                  projectId = v;
-                  if (v != null) await widget.repo.db.putKv('active_project', v);
-                  await _refreshStatus();
-                },
-              ),
-              const SizedBox(height: 16),
-            ],
+      body: OrbBackdrop(
+        child: SafeArea(
+          child: RefreshIndicator(
+            color: kAccent,
+            backgroundColor: kInk2,
+            onRefresh: () async { await _load(); await widget.sync.drain(); await _refreshStatus(); },
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
+              children: [
+                // ── top bar: brand · sync state · sign out ──
+                Row(children: [
+                  const BrandMark(compact: true),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: kGlass,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: kBorder),
+                    ),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      StatusDot(pending > 0 ? kAccent : kGood),
+                      const SizedBox(width: 7),
+                      Text(pending > 0 ? '$pending to send' : 'All sent',
+                          style: const TextStyle(color: kMuted, fontSize: 12.5, fontWeight: FontWeight.w600)),
+                    ]),
+                  ),
+                  const SizedBox(width: 6),
+                  IconButton(
+                    icon: const Icon(Icons.logout_rounded, color: kFaint, size: 22),
+                    tooltip: 'Sign out',
+                    onPressed: () async => widget.onSignOut(),
+                  ),
+                ]),
+                const SizedBox(height: 18),
 
-            // ── today's report — the one big thing ──
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
+                if (projects.length > 1) ...[
+                  DropdownButtonFormField<String>(
+                    value: projectId,
+                    decoration: const InputDecoration(labelText: 'Project'),
+                    dropdownColor: kInk2,
+                    items: [
+                      for (final p in projects)
+                        DropdownMenuItem(value: p['id'] as String,
+                            child: Text(p['name'] as String, style: const TextStyle(color: kText))),
+                    ],
+                    onChanged: (v) async {
+                      projectId = v;
+                      if (v != null) await widget.repo.db.putKv('active_project', v);
+                      await _refreshStatus();
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                ],
+
+                // ── the hero: today's report ──
+                GlassCard(
+                  padding: const EdgeInsets.all(22),
+                  glowColor: sent ? kGood : kAccent,
+                  borderColor: sent ? kGood.withOpacity(0.35) : kAccent.withOpacity(0.3),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                     Row(children: [
-                      Icon(sent ? Icons.check_circle : Icons.today,
-                          color: sent ? kGood : kAccent, size: 28),
-                      const SizedBox(width: 10),
+                      IconOrb(sent ? Icons.verified_rounded : Icons.today_rounded,
+                          color: sent ? kGood : kAccent),
+                      const SizedBox(width: 14),
                       Expanded(
-                        child: Text(
-                          sent
-                              ? 'Today\'s report sent ✓'
-                              : saved
-                                  ? 'Report saved — will send when network returns'
-                                  : 'Today\'s report — not started',
-                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.white),
-                        ),
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          SectionLabel(_dateLine),
+                          const SizedBox(height: 4),
+                          Text(
+                            sent
+                                ? 'Report sent ✓'
+                                : saved
+                                    ? 'Saved — sends when there\'s network'
+                                    : 'Today\'s report',
+                            style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -0.3,
+                                color: sent ? kGood : kText),
+                          ),
+                        ]),
                       ),
                     ]),
-                    const SizedBox(height: 16),
-                    FilledButton.icon(
+                    const SizedBox(height: 18),
+                    GradientButton(
+                      label: sent || saved ? 'Add to today\'s report' : 'Start today\'s report',
+                      icon: sent || saved ? Icons.add_a_photo_rounded : Icons.play_arrow_rounded,
                       onPressed: projectId == null ? null : _startReport,
-                      icon: Icon(sent || saved ? Icons.add_a_photo : Icons.play_arrow),
-                      label: Text(sent || saved ? 'Add to today\'s report' : 'Start today\'s report'),
                     ),
-                  ],
+                  ]),
                 ),
-              ),
-            ),
-            const SizedBox(height: 16),
+                const SizedBox(height: 22),
 
-            // ── quick actions ──
-            OutlinedButton.icon(
-              icon: const Icon(Icons.task_alt, color: kGood),
-              label: const Text('Mark work done'),
-              onPressed: projectId == null
-                  ? null
-                  : () => Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => MarkDoneScreen(repo: widget.repo, sync: widget.sync, projectId: projectId!))),
-            ),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              icon: const Icon(Icons.inventory_2_outlined, color: kAccent),
-              label: const Text('Materials in / out'),
-              onPressed: projectId == null
-                  ? null
-                  : () => Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => MaterialsScreen(repo: widget.repo, sync: widget.sync, projectId: projectId!))),
-            ),
+                // ── quick actions ──
+                const SectionLabel('Quick actions'),
+                const SizedBox(height: 10),
+                GlassCard(
+                  padding: const EdgeInsets.all(16),
+                  onTap: projectId == null
+                      ? null
+                      : () => Navigator.of(context).push(MaterialPageRoute(
+                          builder: (_) => MarkDoneScreen(repo: widget.repo, sync: widget.sync, projectId: projectId!))),
+                  child: Row(children: [
+                    const IconOrb(Icons.task_alt_rounded, color: kGood),
+                    const SizedBox(width: 14),
+                    const Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text('Mark work done',
+                            style: TextStyle(fontSize: 16.5, fontWeight: FontWeight.w700, color: kText)),
+                        SizedBox(height: 2),
+                        Text('Tick a finished stage — the board updates itself',
+                            style: TextStyle(fontSize: 13, color: kMuted)),
+                      ]),
+                    ),
+                    const Icon(Icons.chevron_right_rounded, color: kFaint),
+                  ]),
+                ),
+                const SizedBox(height: 12),
+                GlassCard(
+                  padding: const EdgeInsets.all(16),
+                  onTap: projectId == null
+                      ? null
+                      : () => Navigator.of(context).push(MaterialPageRoute(
+                          builder: (_) => MaterialsScreen(repo: widget.repo, sync: widget.sync, projectId: projectId!))),
+                  child: Row(children: [
+                    const IconOrb(Icons.inventory_2_rounded),
+                    const SizedBox(width: 14),
+                    const Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text('Materials in / out',
+                            style: TextStyle(fontSize: 16.5, fontWeight: FontWeight.w700, color: kText)),
+                        SizedBox(height: 2),
+                        Text('Deliveries into the store, issues to a house',
+                            style: TextStyle(fontSize: 13, color: kMuted)),
+                      ]),
+                    ),
+                    const Icon(Icons.chevron_right_rounded, color: kFaint),
+                  ]),
+                ),
 
-            if (widget.sync.lastError != null) ...[
-              const SizedBox(height: 20),
-              Text('Last problem: ${widget.sync.lastError}',
-                  style: const TextStyle(color: Colors.redAccent, fontSize: 13)),
-            ],
-            const SizedBox(height: 24),
-            const Center(
-              child: Text('Pull down to refresh', style: TextStyle(color: kMuted, fontSize: 13)),
+                if (widget.sync.lastError != null) ...[
+                  const SizedBox(height: 18),
+                  GlassCard(
+                    borderColor: kBad.withOpacity(0.4),
+                    child: Row(children: [
+                      const Icon(Icons.error_outline, color: kBad, size: 18),
+                      const SizedBox(width: 10),
+                      Expanded(
+                          child: Text('Last problem: ${widget.sync.lastError}',
+                              style: const TextStyle(color: kBad, fontSize: 13))),
+                    ]),
+                  ),
+                ],
+                const SizedBox(height: 26),
+                const Center(
+                  child: Text('Pull down to refresh', style: TextStyle(color: kFaint, fontSize: 12.5)),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

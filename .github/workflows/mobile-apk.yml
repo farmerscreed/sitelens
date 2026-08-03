@@ -56,9 +56,30 @@ jobs:
           # Strip any whitespace/newlines a terminal paste may have wrapped into the secrets.
           URL=$(printf '%s' "$SUPABASE_URL" | tr -d '[:space:]')
           KEY=$(printf '%s' "$SUPABASE_ANON_KEY" | tr -d '[:space:]')
-          flutter build apk --release \
+          # Monotonic versionCode so phones accept each new build as an update.
+          flutter build apk --release --build-number=${{ github.run_number }} \
             --dart-define=SUPABASE_URL="$URL" \
             --dart-define=SUPABASE_ANON_KEY="$KEY"
+
+      # Re-sign with the PERSISTENT key so every build installs OVER the previous
+      # one (a fresh debug key per run would force uninstall — wiping the offline
+      # queue). Secrets: ANDROID_KEYSTORE_B64 (PKCS12, base64) + ANDROID_KEYSTORE_PASS.
+      # Without them the debug-signed APK still ships (first-install only).
+      - name: Sign APK with the persistent key
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASS }}
+        run: |
+          if [ -z "$KS_B64" ]; then
+            echo "::warning::ANDROID_KEYSTORE_B64 not set — APK keeps the throwaway debug signature"
+            exit 0
+          fi
+          printf '%s' "$KS_B64" | tr -d '[:space:]' | base64 -d > /tmp/sitelens.p12
+          PASS=$(printf '%s' "$KS_PASS" | tr -d '[:space:]')
+          BT="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)"
+          "$BT/apksigner" sign --ks /tmp/sitelens.p12 --ks-pass "pass:$PASS" \
+            build/app/outputs/flutter-apk/app-release.apk
+          "$BT/apksigner" verify --print-certs build/app/outputs/flutter-apk/app-release.apk | head -3
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4

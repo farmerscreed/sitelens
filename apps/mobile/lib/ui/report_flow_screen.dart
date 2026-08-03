@@ -7,6 +7,7 @@ import '../db/database.dart';
 import '../features/daily_report/report_repository.dart';
 import '../sync/sync_worker.dart';
 import 'camera_screen.dart';
+import 'widgets.dart';
 
 // The 90-second flow (AC-14): which houses → photos → crew & notes → SEND.
 // Everything is tap-first: building chips, a camera that opens straight away,
@@ -59,7 +60,7 @@ class _ReportFlowScreenState extends State<ReportFlowScreen> {
       (buildings.firstWhere((b) => b['id'] == id, orElse: () => {'code': 'house'})['code'] ?? 'house').toString();
 
   Future<void> _takePhoto() async {
-    final projName = 'Project'; // stamp keeps it short; building carries the meaning
+    const projName = 'SiteLens';
     final tagBuilding = selected.isNotEmpty ? selected.first : null;
     final id = await Navigator.of(context).push<String>(MaterialPageRoute(
       builder: (_) => CameraScreen(
@@ -108,31 +109,38 @@ class _ReportFlowScreenState extends State<ReportFlowScreen> {
   Widget build(BuildContext context) {
     final titles = ['Which houses today?', 'Photos', 'Crew & notes'];
     return Scaffold(
-      appBar: AppBar(title: Text('${step + 1}/3 · ${titles[step]}')),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(child: _stepBody()),
-              const SizedBox(height: 12),
-              Row(children: [
-                if (step > 0)
+      appBar: AppBar(title: Text(titles[step])),
+      body: OrbBackdrop(
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                StepBar(step: step, total: 3),
+                const SizedBox(height: 16),
+                Expanded(child: _stepBody()),
+                const SizedBox(height: 14),
+                Row(children: [
+                  if (step > 0)
+                    Expanded(
+                      child: OutlinedButton(
+                          onPressed: () => setState(() => step--), child: const Text('Back')),
+                    ),
+                  if (step > 0) const SizedBox(width: 12),
                   Expanded(
-                    child: OutlinedButton(
-                        onPressed: () => setState(() => step--), child: const Text('Back')),
+                    flex: 2,
+                    child: GradientButton(
+                      label: step < 2 ? 'Next' : (sending ? 'Saving…' : 'SEND REPORT'),
+                      icon: step < 2 ? Icons.arrow_forward_rounded : Icons.send_rounded,
+                      onPressed: _nextEnabled()
+                          ? (step < 2 ? () => setState(() => step++) : (sending ? null : _send))
+                          : null,
+                    ),
                   ),
-                if (step > 0) const SizedBox(width: 12),
-                Expanded(
-                  flex: 2,
-                  child: FilledButton(
-                    onPressed: _nextEnabled() ? (step < 2 ? () => setState(() => step++) : (sending ? null : _send)) : null,
-                    child: Text(step < 2 ? 'Next' : (sending ? 'Saving…' : 'SEND REPORT')),
-                  ),
-                ),
-              ]),
-            ],
+                ]),
+              ],
+            ),
           ),
         ),
       ),
@@ -150,7 +158,7 @@ class _ReportFlowScreenState extends State<ReportFlowScreen> {
       case 0:
         return ListView(children: [
           const Text('Tap every house you worked on', style: TextStyle(color: kMuted, fontSize: 15)),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           Wrap(
             spacing: 10,
             runSpacing: 10,
@@ -159,6 +167,7 @@ class _ReportFlowScreenState extends State<ReportFlowScreen> {
                 FilterChip(
                   label: Text(b['code'] as String, style: const TextStyle(fontSize: 16)),
                   selected: selected.contains(b['id']),
+                  checkmarkColor: kAccent,
                   onSelected: (on) => setState(() =>
                       on ? selected.add(b['id'] as String) : selected.remove(b['id'])),
                 ),
@@ -173,65 +182,78 @@ class _ReportFlowScreenState extends State<ReportFlowScreen> {
         ]);
       case 1:
         final taken = media.where((m) => mediaIds.contains(m.id)).toList();
+        final done = mediaIds.length >= kMinPhotos;
         return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Text(
-            mediaIds.length >= kMinPhotos
-                ? '${mediaIds.length} photos ✓'
-                : '${mediaIds.length} of $kMinPhotos photos — ${kMinPhotos - mediaIds.length} more to go',
-            style: TextStyle(
-                fontSize: 16,
-                color: mediaIds.length >= kMinPhotos ? kGood : kAccent,
-                fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 12),
+          Row(children: [
+            StatusDot(done ? kGood : kAccent),
+            const SizedBox(width: 9),
+            Text(
+              done
+                  ? '${mediaIds.length} photos ✓'
+                  : '${mediaIds.length} of $kMinPhotos photos — ${kMinPhotos - mediaIds.length} more to go',
+              style: TextStyle(
+                  fontSize: 16, color: done ? kGood : kAccent, fontWeight: FontWeight.w700),
+            ),
+          ]),
+          const SizedBox(height: 14),
           Expanded(
             child: GridView.count(
               crossAxisCount: 3,
-              mainAxisSpacing: 8,
-              crossAxisSpacing: 8,
+              mainAxisSpacing: 10,
+              crossAxisSpacing: 10,
               children: [
                 for (final m in taken)
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: Image.file(File(m.localThumbPath), fit: BoxFit.cover),
+                  Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: kBorder),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(13),
+                      child: Image.file(File(m.localThumbPath), fit: BoxFit.cover),
+                    ),
                   ),
               ],
             ),
           ),
-          const SizedBox(height: 12),
-          FilledButton.icon(
-            onPressed: _takePhoto,
-            icon: const Icon(Icons.photo_camera),
-            label: const Text('Take photo'),
-          ),
+          const SizedBox(height: 14),
+          GradientButton(label: 'Take photo', icon: Icons.photo_camera_rounded, onPressed: _takePhoto),
         ]);
       default:
         return ListView(children: [
-          const Text('How many people worked today?', style: TextStyle(color: kMuted, fontSize: 15)),
-          const SizedBox(height: 8),
-          for (final t in kTrades)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Row(children: [
-                Expanded(child: Text(t, style: const TextStyle(fontSize: 17, color: Colors.white))),
-                IconButton.outlined(
-                  onPressed: crew[t]! > 0 ? () => setState(() => crew[t] = crew[t]! - 1) : null,
-                  icon: const Icon(Icons.remove),
+          const SectionLabel('How many people worked today?'),
+          const SizedBox(height: 10),
+          GlassCard(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Column(children: [
+              for (final t in kTrades)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 5),
+                  child: Row(children: [
+                    Expanded(child: Text(t, style: const TextStyle(fontSize: 17, color: kText))),
+                    IconButton.outlined(
+                      onPressed: crew[t]! > 0 ? () => setState(() => crew[t] = crew[t]! - 1) : null,
+                      icon: const Icon(Icons.remove),
+                    ),
+                    SizedBox(
+                        width: 46,
+                        child: Text('${crew[t]}',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                                fontSize: 21,
+                                color: crew[t]! > 0 ? kAccent : kText,
+                                fontWeight: FontWeight.w800))),
+                    IconButton.outlined(
+                      onPressed: () => setState(() => crew[t] = crew[t]! + 1),
+                      icon: const Icon(Icons.add),
+                    ),
+                  ]),
                 ),
-                SizedBox(
-                    width: 44,
-                    child: Text('${crew[t]}',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 20, color: Colors.white, fontWeight: FontWeight.w700))),
-                IconButton.outlined(
-                  onPressed: () => setState(() => crew[t] = crew[t]! + 1),
-                  icon: const Icon(Icons.add),
-                ),
-              ]),
-            ),
-          const SizedBox(height: 16),
-          const Text('Weather', style: TextStyle(color: kMuted, fontSize: 15)),
-          const SizedBox(height: 8),
+            ]),
+          ),
+          const SizedBox(height: 18),
+          const SectionLabel('Weather'),
+          const SizedBox(height: 10),
           Wrap(spacing: 10, children: [
             for (final w in kWeather)
               ChoiceChip(
@@ -240,11 +262,11 @@ class _ReportFlowScreenState extends State<ReportFlowScreen> {
                 onSelected: (_) => setState(() => weather = w),
               ),
           ]),
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
           TextField(
             controller: issues,
             maxLines: 3,
-            style: const TextStyle(color: Colors.white, fontSize: 16),
+            style: const TextStyle(color: kText, fontSize: 16),
             decoration: const InputDecoration(
                 labelText: 'Any problems today? (optional)',
                 hintText: 'e.g. rain stopped work at 2pm'),

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../core/theme.dart';
 import '../data/repo.dart';
 import '../sync/sync_worker.dart';
+import 'widgets.dart';
 
 // Materials in / out. IN = a delivery arrived at the store; OUT = issued to a
 // house (the server's balance guard rejects more than the store holds — AC-4).
@@ -101,28 +102,13 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Materials in / out')),
-      body: ListView(padding: const EdgeInsets.all(16), children: [
+      body: OrbBackdrop(
+        child: ListView(padding: const EdgeInsets.fromLTRB(20, 8, 20, 24), children: [
         // IN / OUT — one big obvious switch
         Row(children: [
-          Expanded(
-            child: ChoiceChip(
-              label: const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 6),
-                  child: Center(child: Text('IN — delivery arrived', style: TextStyle(fontSize: 15)))),
-              selected: type == 'IN',
-              onSelected: (_) => setState(() => type = 'IN'),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: ChoiceChip(
-              label: const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 6),
-                  child: Center(child: Text('OUT — used on a house', style: TextStyle(fontSize: 15)))),
-              selected: type == 'OUT',
-              onSelected: (_) => setState(() => type = 'OUT'),
-            ),
-          ),
+          Expanded(child: _typeCard('IN', Icons.archive_rounded, 'Delivery\narrived', kGood)),
+          const SizedBox(width: 12),
+          Expanded(child: _typeCard('OUT', Icons.unarchive_rounded, 'Used on\na house', kAccent)),
         ]),
         const SizedBox(height: 16),
 
@@ -151,7 +137,7 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
           DropdownButtonFormField<String>(
             value: buildingId,
             decoration: const InputDecoration(labelText: 'Which house?'),
-            dropdownColor: kInkCard,
+            dropdownColor: kInk2,
             items: [
               for (final b in buildings)
                 DropdownMenuItem(
@@ -167,19 +153,40 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
             decoration: const InputDecoration(labelText: 'Supplier (optional)'),
           ),
         const SizedBox(height: 20),
-        FilledButton.icon(
+        GradientButton(
+          label: busy ? 'Saving…' : (type == 'IN' ? 'Save delivery' : 'Save issue'),
+          icon: type == 'IN' ? Icons.archive_rounded : Icons.unarchive_rounded,
           onPressed: busy ||
                   materialId == null ||
                   double.tryParse(qty.text.trim()) == null ||
                   (type == 'OUT' && buildingId == null)
               ? null
               : _save,
-          icon: Icon(type == 'IN' ? Icons.archive_outlined : Icons.unarchive_outlined),
-          label: Text(busy ? 'Saving…' : (type == 'IN' ? 'Save delivery' : 'Save issue')),
         ),
         const SizedBox(height: 12),
         const Text('Works offline — saved items send themselves when there\'s network.',
             style: TextStyle(color: kMuted, fontSize: 13), textAlign: TextAlign.center),
+        ]),
+      ),
+    );
+  }
+
+  Widget _typeCard(String t, IconData icon, String label, Color color) {
+    final on = type == t;
+    return GlassCard(
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      borderColor: on ? color.withOpacity(0.5) : null,
+      glowColor: on ? color : null,
+      onTap: () => setState(() => type = t),
+      child: Column(children: [
+        Icon(icon, color: on ? color : kFaint, size: 26),
+        const SizedBox(height: 6),
+        Text('$t — ${label.replaceAll('\n', ' ').toLowerCase()}',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w700,
+                color: on ? kText : kMuted)),
       ]),
     );
   }
