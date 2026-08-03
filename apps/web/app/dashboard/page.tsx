@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import {
   IconBoard, IconCalendar, IconBox, IconReceipt, IconLayers, IconUpload,
-  IconChat, IconBuilding, IconLink, IconCheck, IconChevron,
+  IconChat, IconBuilding, IconLink, IconCheck, IconChevron, IconUsers,
 } from "@/components/icons";
 
 type Org = { org_id: string; org_name: string; role: string; is_active_org: boolean };
@@ -27,6 +27,7 @@ export default async function Dashboard() {
   const [
     { data: projectRows }, { data: buildingRows }, { data: recipeRows },
     { data: portalRows }, { data: saleRows }, { data: msRows }, { data: txnRows }, { data: priceRows },
+    { data: clientRows },
   ] = await Promise.all([
     supabase.from("projects").select("id").is("archived_at", null),
     supabase.from("buildings").select("id,status").is("archived_at", null),
@@ -36,6 +37,7 @@ export default async function Dashboard() {
     supabase.from("building_milestones").select("milestone,milestone_order,status,building_id"),
     supabase.from("material_transactions").select("id").limit(1),
     supabase.from("material_prices").select("id").limit(1),
+    supabase.from("client_summary").select("client_id,full_name,due_now,next_due_label,overdue").order("due_now", { ascending: false }),
   ]);
 
   const buildings = buildingRows ?? [];
@@ -46,6 +48,12 @@ export default async function Dashboard() {
   const buyerSales = sales.filter((s) => s.party_role === "buyer");
   const contractValue = buyerSales.reduce((a, s) => a + Number(s.total_amount), 0);
   const collected = sales.reduce((a, s) => a + Number(s.paid), 0);
+
+  // Collections: tranches that are triggered (milestone reached / month arrived)
+  // but unpaid — the money to go and collect today.
+  type ClientDue = { client_id: string; full_name: string; due_now: string; next_due_label: string | null; overdue: boolean };
+  const overdueClients = ((clientRows ?? []) as ClientDue[]).filter((c) => c.overdue);
+  const dueNow = overdueClients.reduce((a, c) => a + Number(c.due_now), 0);
 
   // Portfolio by milestone (across all live buildings).
   type Ms = { milestone: string; milestone_order: number; status: string; building_id: string };
@@ -70,7 +78,8 @@ export default async function Dashboard() {
 
   const launch = [
     { href: "/board", label: "Board", desc: "Homes by stage", icon: IconBoard },
-    { href: "/sales", label: "Sales & payments", desc: "Buyers, partners, collections", icon: IconReceipt },
+    { href: "/clients", label: "Clients", desc: "Directory & collections", icon: IconUsers },
+    { href: "/sales", label: "Sales & payments", desc: "Buyers, partners, payment plans", icon: IconReceipt },
     { href: "/planner", label: "Planner", desc: "Cash-flow feasibility", icon: IconCalendar },
     { href: "/materials", label: "Materials", desc: "Stock & reorder", icon: IconBox },
     { href: "/portal-links", label: "Client portals", desc: "Share progress links", icon: IconLink },
@@ -103,6 +112,9 @@ export default async function Dashboard() {
             <div className="mt-4 flex flex-wrap gap-x-8 gap-y-2 text-sm">
               <span className="text-[#8b95a7]">Contract value <span className="ml-1 font-mono text-white">{naira(contractValue)}</span></span>
               <span className="text-[#8b95a7]">Collected <span className="ml-1 font-mono text-emerald-300">{naira(collected)}</span></span>
+              {dueNow > 0 && (
+                <Link href="/clients" className="text-[#8b95a7] hover:text-white">Due now <span className="ml-1 font-mono text-accent-300">{naira(dueNow)}</span></Link>
+              )}
             </div>
           </div>
           <div className="text-right">
@@ -129,6 +141,38 @@ export default async function Dashboard() {
           );
         })}
       </section>
+
+      {/* Collections — who to call today. Disappears when nothing is due. */}
+      {overdueClients.length > 0 && (
+        <section className="card border-accent-500/25">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-white">Collections</h2>
+              <p className="mt-0.5 text-xs text-[#8b95a7]">Tranches that are due (milestone reached or month arrived) and not yet paid.</p>
+            </div>
+            <span className="badge badge-accent font-mono">{naira(dueNow)} due now</span>
+          </div>
+          <div className="mt-3 space-y-1.5">
+            {overdueClients.slice(0, 5).map((c) => (
+              <Link key={c.client_id} href={`/clients/${c.client_id}`}
+                className="group flex items-center justify-between gap-3 rounded-xl px-2 py-2 transition hover:bg-white/[0.03]">
+                <span className="min-w-0 truncate text-sm font-medium text-white">{c.full_name}
+                  {c.next_due_label && <span className="ml-2 text-xs text-[#5b6473]">next: {c.next_due_label}</span>}
+                </span>
+                <span className="flex items-center gap-2">
+                  <span className="font-mono text-sm text-accent-300">{naira(Number(c.due_now))}</span>
+                  <IconChevron className="h-4 w-4 -rotate-90 text-[#5b6473] transition group-hover:text-accent-300" />
+                </span>
+              </Link>
+            ))}
+            {overdueClients.length > 5 && (
+              <Link href="/clients" className="block px-2 pt-1 text-xs text-accent-300 hover:underline">
+                +{overdueClients.length - 5} more on the clients page →
+              </Link>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* Portfolio by milestone */}
       {portfolio.length > 0 && (

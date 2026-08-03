@@ -7,7 +7,7 @@ import { ProjectSwitcher } from "@/components/ProjectSwitcher";
 import {
   IconGrid, IconBoard, IconCalendar, IconBox, IconReceipt, IconTag, IconLayers,
   IconUpload, IconSpark, IconChat, IconLink, IconBell, IconLogo, IconMenu,
-  IconClose, IconLogout, IconChevron, IconBuilding,
+  IconClose, IconLogout, IconChevron, IconBuilding, IconUsers,
 } from "@/components/icons";
 
 type NavItem = { href: string; label: string; icon: (p: { className?: string }) => JSX.Element; group: string };
@@ -25,6 +25,7 @@ const NAV: NavItem[] = [
   { href: "/boq-import", label: "BOQ import", icon: IconUpload, group: "Design" },
   { href: "/ask", label: "Ask", icon: IconChat, group: "Intelligence" },
   { href: "/ai", label: "AI proposals", icon: IconSpark, group: "Intelligence" },
+  { href: "/clients", label: "Clients", icon: IconUsers, group: "Clients" },
   { href: "/sales", label: "Sales & payments", icon: IconReceipt, group: "Clients" },
   { href: "/portal-links", label: "Portal links", icon: IconLink, group: "Clients" },
   { href: "/notifications", label: "Notifications", icon: IconBell, group: "Clients" },

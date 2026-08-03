@@ -23,9 +23,10 @@ export default async function SalesPage({ searchParams }: { searchParams: { proj
   const { data: projects } = await supabase.from("projects").select("id,name").is("archived_at", null).order("name");
   const projectId = activeProjectId(searchParams, projects ?? []);
 
-  const [{ data: sales }, { data: buildings }] = await Promise.all([
+  const [{ data: sales }, { data: buildings }, { data: clients }] = await Promise.all([
     supabase.from("sale_payment_summary").select("*").eq("project_id", projectId),
     supabase.from("buildings").select("id,code").eq("project_id", projectId).is("archived_at", null).order("code"),
+    supabase.from("clients").select("id,full_name,email,phone").is("archived_at", null).order("full_name"),
   ]);
 
   const rows = (sales ?? []) as Sale[];
@@ -73,7 +74,7 @@ export default async function SalesPage({ searchParams }: { searchParams: { proj
         }} />
       <Table title="Buyers" list={buyers} />
       <Table title="Partners / master developers" list={partners} />
-      <SalesManager orgId={orgId} projectId={projectId} buildings={buildings ?? []} />
+      <SalesManager orgId={orgId} projectId={projectId} buildings={buildings ?? []} clients={clients ?? []} />
     </div>
   );
 }

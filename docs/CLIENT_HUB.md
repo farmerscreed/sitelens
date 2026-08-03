@@ -1,10 +1,13 @@
 # Client Hub — design spec (to build in a new session)
 
-> **Status: designed, NOT built.** Build this FIRST in the next session (before the mobile
-> phase). It's a light "client hub" — a directory + per-client summary over data we already
-> have — **not a CRM.** Founder + assistant agreed the approach; this is the buildable spec.
-> Read `docs/HANDOVER.md` for context and `docs/DECISIONS.md` #62/#63 for the sales/portal
-> model it sits on top of.
+> **Status: BUILT (2026-08-03) — see DECISIONS #64.** Implemented per this spec with four
+> agreed revisions: (a) the client is the front door of a sale (type-ahead get-or-create in
+> the sale form; the unlinked-sales panel is back-fill only and disappears when done);
+> (b) email dedup guard (partial unique index + get-or-create semantics); (c) `kind` is
+> derived from sales, not stored; (d) collections (due_now/next-due) surface on the
+> dashboard, not just the directory. Archive is additionally blocked while the client owes
+> money. Migration `20260803120000_client_hub.sql`, test `supabase/tests/clients.sql`,
+> pages `/clients` + `/clients/[id]`.
 
 ---
 

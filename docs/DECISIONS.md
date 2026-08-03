@@ -487,3 +487,24 @@ logged here so the founder can review drift. Newest at the bottom.
     practice (BuildWatch); the in-web photo GALLERY is the remaining piece, deferred until the
     mobile app feeds real photos (the portal already surfaces the count). What clients are owed
     = progress + proof, not a spend breakdown (that stays an internal/optional view).
+64. **Client hub = a thin directory, not a CRM (pilot, 2026-08-03).** One place to answer
+    "pull up this client - who, which houses, what's paid, what's due, portal access."
+    A first-class `clients` table (org-scoped, RLS SELECT-only, writes via SECURITY DEFINER
+    fns - Rule 1) with four revisions on the original spec (docs/CLIENT_HUB.md):
+    (a) THE CLIENT IS THE FRONT DOOR OF A SALE - the sale form type-ahead matches existing
+    clients or get-or-creates one in the same submit (`fn_create_client` dedups on
+    (org, lower(email)) with a partial unique index; same email = same person);
+    `sales.party_name` remains as denormalised display for legacy rows; a one-tap
+    "add to directory" panel absorbs pre-hub sales and then disappears. (b) `kind`
+    (buyer/partner/both) is DERIVED from their sales in `client_summary`, never stored -
+    it can't drift. (c) ARCHIVE IS BLOCKED WHILE MONEY IS OWED (`fn_archive_client` raises
+    if outstanding > 0): you cannot hide someone with a balance; clean clients soft-delete
+    like buildings/recipes. (d) COLLECTIONS SURFACE WHERE THE FOUNDER LOOKS: `client_summary`
+    computes due_now (triggered-but-unpaid tranche remainder via `payment_schedule`) +
+    next_due_label; the dashboard gets a Collections card (top overdue clients, disappears
+    when nothing is due) and the directory sorts by due_now. `fn_create_sale` /
+    `fn_create_portal_link` were DROPped and recreated with an optional `p_client` (dropping
+    first avoids PostgREST rpc ambiguity - same move as portal_v2); `fn_link_sale_client`
+    back-links old sales; portal links prefill + file under the client. Explicitly NOT
+    built (kept construction-management, not Salesforce): lead pipeline, marketing, tasks,
+    document vaults, message threads, calendars.

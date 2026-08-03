@@ -70,6 +70,20 @@ raw findings under subagents/workflows/wf_e9e89977*):
 - **Dashboard redesigned** — portfolio-complete hero, live Homes/Homes-sold/Collected, a
   "Portfolio by milestone" rollup.
 
+**CLIENT HUB — BUILT (2026-08-03, this box).** The light client directory from
+docs/CLIENT_HUB.md, built with 4 agreed revisions (DECISIONS #64): `clients` table
+(email-dedup guard, Rule-1 write fns) with the client as the FRONT DOOR of a sale
+(sale form type-ahead → pick existing or auto-create; `fn_create_client` get-or-creates
+on email); `kind` derived, never stored; archive blocked while money is owed;
+collections first-class — `client_summary` computes due_now/next-due, `/clients`
+sorts by it, and the dashboard gets a Collections card (top overdue, disappears when
+clear) + "Due now" hero figure. Web: `/clients` directory + `/clients/[id]` (money
+card, per-house milestone strip, payment schedules, portal links w/ last-opened +
+prefilled send). `fn_create_sale`/`fn_create_portal_link` recreated with `p_client`
+(old signatures dropped — PostgREST ambiguity). Pre-hub sales back-filled by
+migration + a one-tap "add to directory" panel for leftovers. **51 migrations,
+32 suites green** (new `clients` suite; RLS still 49/0) + tsc clean.
+
 **50 migrations, 31 suites green** (`bash scripts/verify_all.sh`), all DEPLOYED to cloud
 (DB via MCP `apply_migration` + Vercel). **The ONE deferred piece: an in-web photo GALLERY**
 — photos are the #1 client trust driver but none exist yet (they come from the parked Flutter

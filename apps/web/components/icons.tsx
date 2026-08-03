@@ -57,6 +57,9 @@ export const IconBuilding = (p: P) => (
 export const IconMenu = (p: P) => (
   <svg {...base(p)}><path d="M3 6h18M3 12h18M3 18h18" /></svg>
 );
+export const IconUsers = (p: P) => (
+  <svg {...base(p)}><circle cx="9" cy="8" r="3.25" /><path d="M3.5 20c.5-3.4 2.8-5.25 5.5-5.25S14 16.6 14.5 20" /><path d="M15.5 5.4a3.25 3.25 0 0 1 0 5.2M17.6 15.1c1.6.75 2.6 2.4 2.9 4.4" /></svg>
+);
 export const IconClose = (p: P) => (
   <svg {...base(p)}><path d="M18 6 6 18M6 6l12 12" /></svg>
 );
