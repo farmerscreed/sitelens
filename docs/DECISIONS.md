@@ -526,3 +526,25 @@ logged here so the founder can review drift. Newest at the bottom.
     contract changed); field_ops.sql owns the full field contract. Devices decision:
     the app targets ANDROID 8+ only (PRD spec + Nigerian field reality + APK sideload);
     iOS stays open via Flutter but is deferred until someone real needs it.
+66. **Member administration — invite / list / deactivate (2026-08-03; deferred scope pulled
+    forward with founder sign-off).** "Account administration" is on the `[LATER]` list
+    (CLAUDE.md) and we are mid-M8, but a friend testing the app hit `signInWithOtp`'s
+    "Signups not allowed for otp" — by design: login uses `shouldCreateUser:false`, so only
+    provisioned users get in and there is NO self-signup. Rather than hand-provision, the
+    founder chose to build the real invite feature. An org **admin** invites by email + role
+    (`admin`/`pm`/`engineer`/`client`); the invitee then signs in normally with that email —
+    the login page is UNCHANGED, the invite just puts people on the right side of the existing
+    wall. Account creation needs the GoTrue admin API (SQL can't mint a user), so it lives in
+    the **`invite-member` Edge Function** (service role); but AUTHORIZATION stays in the DB —
+    `fn_add_member` / `fn_set_member_active` are SECURITY DEFINER, require the caller be an
+    active admin of their **current** org (`fn_require_org_admin`), and derive the org from
+    the caller's JWT — there is **no org parameter**, so an admin of Org A cannot grant into
+    Org B (cross-org injection is structurally impossible, and tested). The function authorises
+    up-front (so a rejected non-admin never orphans a GoTrue user) and re-checks in the DB.
+    `app_users.phone` made **nullable** (email-invited members have no phone; still UNIQUE —
+    Postgres treats NULLs as distinct). Re-invite is idempotent (upsert role + reactivate, no
+    duplicate — `UNIQUE(org_id,user_id)`). Deactivate is soft (`is_active=false`; memberships
+    are never hard-deleted — financial FKs are `ON DELETE RESTRICT`) with two lock-out guards:
+    you cannot deactivate yourself or the last active admin. Roster read (`fn_org_members`) is
+    open to any active member; management is admin-only, and the `/team` nav item + page are
+    admin-gated. Tests: `supabase/tests/member_invite.sql`.
