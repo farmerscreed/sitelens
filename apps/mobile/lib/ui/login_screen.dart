@@ -64,6 +64,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   autocorrect: false,
                   style: const TextStyle(fontSize: 17, color: Colors.white),
                   decoration: const InputDecoration(labelText: 'Your email'),
+                  onChanged: (_) => setState(() {}),
+                  onSubmitted: (_) => busy || email.text.trim().isEmpty ? null : _send(),
                 ),
                 const SizedBox(height: 16),
                 FilledButton(

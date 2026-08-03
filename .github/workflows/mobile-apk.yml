@@ -37,7 +37,7 @@ jobs:
 
       - name: Generate Android platform files
         run: |
-          flutter create --platforms=android --project-name sitelens_mobile .
+          flutter create --platforms=android --org app.sitelens --project-name sitelens_mobile .
           bash tool/android_setup.sh
 
       - name: Dependencies + Drift codegen
