@@ -21,7 +21,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   let failReport: ((msg: string) => Promise<void>) | null = null;
   try {
-    const { orgId, buildingTypeId, gridRows, fileBase64, mime, sourceMediaId, format, importId: preId } = await req.json();
+    const { orgId, buildingTypeId, gridRows, fileBase64, mime, sourceMediaId, format, importId: preId, sheetLabel } = await req.json();
     const authHeader = req.headers.get("Authorization") ?? "";
     const supa = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -54,6 +54,13 @@ Deno.serve(async (req) => {
       // Spreadsheet lane: deterministic grammar first, AI enrichment on top.
       await report({ step: "decoding" });
       const annotated = annotateGrid(gridRows).rows as BoqV2Row[];
+      // Multi-sheet workbooks: rows with no element of their own group under the
+      // sheet's name, so per-sheet imports still bootstrap stages sensibly.
+      if (typeof sheetLabel === "string" && sheetLabel.trim()) {
+        for (const r of annotated) {
+          if (!r.section_path || r.section_path.length === 0) r.section_path = [sheetLabel.trim()];
+        }
+      }
       devSuggestKinds(annotated);                       // baseline kinds (dev + fallback)
       await report({ step: "enriching", done: 0, total: 0 });
       rows = await enrichBoqRows(annotated, stages,     // no-op in DEV_AI_MODE
