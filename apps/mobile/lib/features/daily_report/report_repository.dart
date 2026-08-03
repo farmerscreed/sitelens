@@ -37,6 +37,13 @@ class ReportRepository {
           idempotencyKey: key,
         ));
 
+    // Link the photos to this report locally: the sync worker holds the report
+    // until every linked photo is registered on the server (§13.4 ordering).
+    if (mediaIds.isNotEmpty) {
+      await (db.update(db.mediaLocal)..where((m) => m.id.isIn(mediaIds)))
+          .write(MediaLocalCompanion(reportId: Value(id)));
+    }
+
     // Enqueue the server mutation. The payload mirrors fn_submit_daily_report's args;
     // p_id + p_idempotency_key make a resend idempotent.
     await db.enqueue('submit_report', id, jsonEncode({
@@ -50,6 +57,7 @@ class ReportRepository {
       'p_issues': issues,
       'p_lon': lon,
       'p_lat': lat,
+      'p_device_captured_at': DateTime.now().toUtc().toIso8601String(),
       'p_is_offline': isOffline,
       'p_media': mediaIds,
     }));

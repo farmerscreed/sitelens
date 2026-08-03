@@ -1,71 +1,97 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'db/database.dart';
 import 'api/api_client.dart';
+import 'core/session.dart';
+import 'core/theme.dart';
+import 'data/repo.dart';
+import 'db/database.dart';
 import 'sync/sync_worker.dart';
-import 'features/daily_report/report_repository.dart';
+import 'ui/login_screen.dart';
+import 'ui/today_screen.dart';
 
-// Minimal field app wiring the offline pipeline. Real auth (phone OTP), camera capture,
-// and project selection are wired in from here; this file shows the offline submit +
-// reconnect-drain loop that delivers AC-1.
+// SiteLens field app (Android 8+): the Site Engineer's tool, offline-first.
+// Local SQLite is the source of truth; the sync worker drains queued work on
+// reconnect + every 30 s (AC-1). Config via --dart-define (SUPABASE_URL/ANON_KEY).
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   const url = String.fromEnvironment('SUPABASE_URL', defaultValue: 'http://10.0.2.2:54321');
   const anon = String.fromEnvironment('SUPABASE_ANON_KEY');
-  runApp(SiteLensApp(url: url, anonKey: anon));
+  runApp(const SiteLensApp(url: url, anonKey: anon));
 }
 
 class SiteLensApp extends StatefulWidget {
   const SiteLensApp({super.key, required this.url, required this.anonKey});
   final String url;
   final String anonKey;
+
   @override
   State<SiteLensApp> createState() => _SiteLensAppState();
 }
 
 class _SiteLensAppState extends State<SiteLensApp> {
-  late final AppDb db = AppDb();
-  late final ApiClient api = ApiClient(baseUrl: widget.url, anonKey: widget.anonKey, accessToken: '');
-  late final SyncWorker sync = SyncWorker(db, api, orgId: '');
-  late final ReportRepository reports = ReportRepository(db);
-  final summary = TextEditingController();
-  String status = 'offline-first: writes go to local SQLite, then sync';
+  final AppDb db = AppDb();
+  Session? session;
+  ApiClient? api;
+  SyncWorker? sync;
+  Repo? repo;
+  bool ready = false;
+  Timer? heartbeat;
 
   @override
   void initState() {
     super.initState();
-    // Drain the outbox whenever connectivity returns (§13.1).
-    Connectivity().onConnectivityChanged.listen((_) => sync.drain());
+    _boot();
   }
 
-  Future<void> _submit() async {
-    final id = await reports.submitLocal(
-      projectId: 'demo-project',
-      reportDate: DateTime.now(),
-      workSummary: summary.text,
-      mediaIds: const [],
-    );
-    setState(() => status = 'saved locally as $id — queued for sync');
-    summary.clear();
-    await sync.drain(); // try now; harmless if offline (stays queued, retried on reconnect)
+  Future<void> _boot() async {
+    final s = await Session.load(baseUrl: widget.url, anonKey: widget.anonKey);
+    final a = ApiClient(s);
+    final w = SyncWorker(db, a, s);
+    final r = Repo(db, a, s);
+    // Drain whenever connectivity returns, and every 30 s as a safety net.
+    Connectivity().onConnectivityChanged.listen((_) => w.drain());
+    heartbeat = Timer.periodic(const Duration(seconds: 30), (_) => w.drain());
+    if (s.signedIn) {
+      // Best-effort: refresh the token + make sure the org claim is present.
+      try {
+        await s.refresh();
+        await r.ensureActiveOrg();
+      } catch (_) {/* offline start is fine — cached data carries the day */}
+    }
+    setState(() {
+      session = s; api = a; sync = w; repo = r; ready = true;
+    });
+  }
+
+  @override
+  void dispose() {
+    heartbeat?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _afterSignIn() async {
+    await repo!.ensureActiveOrg();
+    setState(() {});
+    sync!.drain();
+  }
+
+  Future<void> _signOut() async {
+    await session!.signOut();
+    setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'SiteLens',
-      home: Scaffold(
-        appBar: AppBar(title: const Text('Daily report')),
-        body: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(children: [
-            TextField(controller: summary, decoration: const InputDecoration(labelText: 'Work summary'), maxLines: 3),
-            const SizedBox(height: 12),
-            FilledButton(onPressed: _submit, child: const Text('Submit (works offline)')),
-            const SizedBox(height: 16),
-            Text(status, style: const TextStyle(color: Colors.grey)),
-          ]),
-        ),
-      ),
+      debugShowCheckedModeBanner: false,
+      theme: siteLensTheme(),
+      home: !ready
+          ? const Scaffold(body: Center(child: CircularProgressIndicator(color: kAccent)))
+          : session!.signedIn
+              ? TodayScreen(repo: repo!, sync: sync!, onSignOut: _signOut)
+              : LoginScreen(session: session!, onSignedIn: _afterSignIn),
     );
   }
 }

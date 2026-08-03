@@ -26,38 +26,63 @@ class DailyReportsLocal extends Table {
 }
 
 // Photos queue SEPARATELY with their own retry (§13.4): a report is visible once its
-// thumbs upload; originals continue in the background.
+// thumbs upload; originals continue in the background (Wi-Fi preferred).
+// uploadState: pending → thumb → display → registered → done
 class MediaLocal extends Table {
   TextColumn get id => text()();
   TextColumn get reportId => text().nullable()();
+  TextColumn get buildingId => text().nullable()();   // which house the photo shows
   TextColumn get localThumbPath => text()();
   TextColumn get localDisplayPath => text()();
   TextColumn get localOriginalPath => text()();
   RealColumn get lon => real().nullable()();
   RealColumn get lat => real().nullable()();
+  RealColumn get gpsAccuracyM => real().nullable()();
   DateTimeColumn get capturedAt => dateTime()();
   TextColumn get phashHex => text().nullable()();
   BoolColumn get mockLocation => boolean().withDefault(const Constant(false))();
-  TextColumn get uploadState => text().withDefault(const Constant('pending'))(); // pending|thumb|display|original|done
+  TextColumn get uploadState => text().withDefault(const Constant('pending'))();
   @override
   Set<Column> get primaryKey => {id};
 }
 
 // The outbox: one row per pending mutation. Drained on reconnect; retried with backoff.
+// kind: 'submit_report' | 'complete_stage' | 'material_txn'
 class Outbox extends Table {
   IntColumn get seq => integer().autoIncrement()();
-  TextColumn get kind => text()();            // 'submit_report' | 'register_media'
-  TextColumn get refId => text()();           // report or media id
+  TextColumn get kind => text()();
+  TextColumn get refId => text()();           // report / building / txn id
   TextColumn get payloadJson => text()();
   IntColumn get attempts => integer().withDefault(const Constant(0))();
   DateTimeColumn get nextAttemptAt => dateTime().nullable()();
 }
 
-@DriftDatabase(tables: [DailyReportsLocal, MediaLocal, Outbox])
+// Small key→JSON cache for reference data (projects, buildings, stages, materials)
+// so every list still renders offline. Values are raw JSON from PostgREST.
+class CacheKv extends Table {
+  TextColumn get key => text()();
+  TextColumn get valueJson => text()();
+  DateTimeColumn get fetchedAt => dateTime()();
+  @override
+  Set<Column> get primaryKey => {key};
+}
+
+@DriftDatabase(tables: [DailyReportsLocal, MediaLocal, Outbox, CacheKv])
 class AppDb extends _$AppDb {
   AppDb() : super(_open());
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+        onUpgrade: (m, from, to) async {
+          if (from < 2) {
+            await m.createTable(cacheKv);
+            await m.addColumn(mediaLocal, mediaLocal.buildingId);
+            await m.addColumn(mediaLocal, mediaLocal.gpsAccuracyM);
+          }
+        },
+      );
 
   Future<void> enqueue(String kind, String refId, String payloadJson) =>
       into(outbox).insert(OutboxCompanion.insert(kind: kind, refId: refId, payloadJson: payloadJson));
@@ -66,6 +91,21 @@ class AppDb extends _$AppDb {
         ..where((o) => o.nextAttemptAt.isSmallerOrEqualValue(now) | o.nextAttemptAt.isNull())
         ..orderBy([(o) => OrderingTerm.asc(o.seq)]))
       .get();
+
+  // Everything still waiting to reach the server — the "will send" count.
+  Future<int> pendingCount() async {
+    final ob = await select(outbox).get();
+    final media = await (select(mediaLocal)..where((m) => m.uploadState.isNotValue('done'))).get();
+    return ob.length + media.length;
+  }
+
+  Future<String?> getKv(String key) async {
+    final row = await (select(cacheKv)..where((c) => c.key.equals(key))).getSingleOrNull();
+    return row?.valueJson;
+  }
+
+  Future<void> putKv(String key, String json) => into(cacheKv).insertOnConflictUpdate(
+      CacheKvCompanion.insert(key: key, valueJson: json, fetchedAt: DateTime.now()));
 }
 
 LazyDatabase _open() => LazyDatabase(() async {
