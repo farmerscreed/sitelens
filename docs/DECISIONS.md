@@ -548,3 +548,15 @@ logged here so the founder can review drift. Newest at the bottom.
     you cannot deactivate yourself or the last active admin. Roster read (`fn_org_members`) is
     open to any active member; management is admin-only, and the `/team` nav item + page are
     admin-gated. Tests: `supabase/tests/member_invite.sql`.
+67. **Field app v1 scope is CLOSED; redesign + persistent signing (2026-08-03).**
+    Founder decision: the app stays at exactly three jobs (report+photos, mark done,
+    materials in/out) — no money, no planner, no Ask on the phone; new screens must
+    be earned by pilot evidence (attendance when F-12 lands; a PM approvals mode if
+    the PM proves phone-first). Visual redesign to the "command console in your
+    pocket" language (glow orbs, glass panels, amber-sheen CTAs, glowing icon orbs,
+    step bar; legibility first). CI now re-signs the APK with a persistent PKCS12
+    keystore (repo secrets ANDROID_KEYSTORE_B64/PASS; key file safeguarded outside
+    the repo at ~/.sitelens/ on the dev box — if lost, one forced reinstall) and
+    stamps versionCode from the run number, so updates install OVER the old build
+    and never wipe the offline queue. Signed cert: CN=SiteLens, O=Vantara
+    International. Verified end-to-end on the founder's phone.
