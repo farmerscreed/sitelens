@@ -19,7 +19,7 @@ export default async function BoqReviewPage({ params }: { params: { id: string }
 
   const [{ data: rows }, { data: materials }, { data: stages }, { data: assemblies }, { data: priceRows }] = await Promise.all([
     supabase.from("boq_import_rows")
-      .select("id,raw_text,resolved_text,parsed_qty,parsed_unit,unit_normalized,parsed_rate,amount,mapped_material_id,confidence,status,row_kind,boq_ref,section_path,is_priced,is_provisional,suggested_stage_id,suggested_kind,mix_ratio,material_guess,flags,row_no")
+      .select("id,raw_text,resolved_text,parsed_qty,parsed_unit,unit_normalized,parsed_rate,parsed_rate_material,parsed_rate_labour,amount,mapped_material_id,confidence,status,row_kind,boq_ref,section_path,is_priced,is_provisional,suggested_stage_id,suggested_kind,mix_ratio,material_guess,flags,row_no")
       .eq("import_id", params.id)
       .order("row_no", { ascending: true, nullsFirst: false }),
     supabase.from("materials_catalog").select("id,name,unit").order("name"),

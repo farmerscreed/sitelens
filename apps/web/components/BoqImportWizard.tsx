@@ -4,7 +4,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { IconUpload, IconAlert, IconLayers, IconChevron, IconCheck } from "@/components/icons";
-import { buildWorkbookMap, trimGrid, ROLE_LABEL } from "@/lib/boq/workbook.mjs";
+import { buildWorkbookMap, trimGrid, ROLE_LABEL, parseRatesSheet, parseCheckSheet } from "@/lib/boq/workbook.mjs";
+import { RatesSheetPanel, type RateRow } from "@/components/RatesSheetPanel";
+import { CheckSheetPanel, type CheckRow } from "@/components/CheckSheetPanel";
 
 type Type = { id: string; name: string };
 type Kind = "sheet" | "pdf" | "image" | "unknown";
@@ -253,6 +255,19 @@ export function BoqImportWizard({ orgId, types }: { orgId: string; types: Type[]
   const pickedBills = wbMap?.filter((e) => e.include && e.role === "bill") ?? [];
   const doneRuns = runs?.filter((r) => r.state === "done" && r.importId) ?? [];
   const allSettled = !!runs && runs.every((r) => r.state === "done" || r.state === "error");
+  // Non-bill sheets get their own lanes: rates → price book + references,
+  // schedules/summaries → cross-check values. Independent of the bill imports.
+  const ratesSheets = (wbMap ?? [])
+    .filter((e) => e.role === "rates")
+    .map((e) => ({ name: e.name, rows: parseRatesSheet(gridsRef.current[e.name] ?? []) as RateRow[] }))
+    .filter((s) => s.rows.length > 0);
+  const checkSheets = (wbMap ?? [])
+    .filter((e) => e.role === "reference" || e.role === "summary")
+    .map((e) => ({
+      name: e.name, role: e.role,
+      rows: parseCheckSheet(gridsRef.current[e.name] ?? [], e.role) as CheckRow[],
+    }))
+    .filter((s) => s.rows.length > 0);
 
   return (
     <div className="max-w-3xl space-y-4">
@@ -395,6 +410,14 @@ export function BoqImportWizard({ orgId, types }: { orgId: string; types: Type[]
           )}
         </section>
       )}
+
+      {/* The workbook's other lanes — visible as soon as the map exists. */}
+      {wbMap && ratesSheets.map((s) => (
+        <RatesSheetPanel key={s.name} orgId={orgId} sheetName={s.name} rows={s.rows} />
+      ))}
+      {wbMap && typeId && checkSheets.map((s) => (
+        <CheckSheetPanel key={s.name} buildingTypeId={typeId} sheetName={s.name} role={s.role} rows={s.rows} />
+      ))}
     </div>
   );
 }
