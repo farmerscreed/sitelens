@@ -560,3 +560,27 @@ logged here so the founder can review drift. Newest at the bottom.
     stamps versionCode from the run number, so updates install OVER the old build
     and never wipe the offline queue. Signed cert: CN=SiteLens, O=Vantara
     International. Verified end-to-end on the founder's phone.
+68. **Workbook-aware BOQ ingest — three lanes, one front door (2026-08-04).**
+    Driven by the founder's two real Vantara workbooks (QS original + AI-rescoped
+    working BOQ), which the single-sheet wizard could not ingest. Judgment calls
+    where the PRD/design doc were silent: (a) **duplicate-sheet rule** — a bill
+    sheet whose item fingerprints are ≥60% contained in a same-or-larger sheet is
+    the subset and defaults excluded (the QS file's cumulative sheet 01 repeats
+    sheets 02–06; importing both would double-count ~₦367m); the human can
+    re-include on the workbook map. (b) **One import per bill sheet**, not one
+    workbook-wide import — review/confirm/bootstrap machinery unchanged, and the
+    sheet name becomes the element fallback so stages bootstrap per bill.
+    (c) **Rates-sheet prices may enter material_prices** — deliberately distinct
+    from §7: section-A "input prices" are genuine delivered market prices (the
+    workbook derives its bill rates FROM them), unlike all-in bill rates which
+    stay banned; labour and build-up rows are filed as reference inferences only.
+    (d) **Split-rate capture** — parsed_rate_material/labour on staging,
+    boq_rate_material/labour on work items; boq_rate remains the all-in reference
+    (Rule 4 untouched); the §7 price proposal now prefers the material component;
+    AssemblyProposals takes labour stated by the bill over the derived residual.
+    (e) **Check values are graded, never imported** — schedule/summary sheets land
+    in boq_check_values (replace-by-sheet idempotent) and type_takeoff_check
+    compares them live against the computed take-off; incomparable rows surface as
+    NULL variance, never a guess. (f) **Element promotion heuristic** — a works
+    title directly above its own column header names the element zone (how both
+    real workbooks are structured); verified against the NPC-class grammar tests.

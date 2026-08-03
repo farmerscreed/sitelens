@@ -149,3 +149,14 @@ cloud-move time. Append as we go. Region target: managed Supabase, London
 - **No cloud Auth setting change needed:** users are minted via the admin API
   (`admin.createUser`, `email_confirm:true`), so the project's "allow new signups"
   toggle is irrelevant — self-signup stays off, invite still works.
+
+## Workbook BOQ ingest (2026-08-04, DECISIONS #68)
+
+- **Apply migration `20260803190000_boq_workbook_v3.sql`** to cloud (`supabase db push`
+  or MCP `apply_migration`) — rate-component columns, check-values table/fns,
+  `type_takeoff_check` view.
+- **Redeploy the `boq-extract-pdf` Edge Function** (it now accepts `sheetLabel` and
+  ships the extended `_shared/boq_core.mjs` grammar):
+  `~/.local/bin/supabase functions deploy boq-extract-pdf --project-ref gwzpqnnwflwkcrowolgx --use-api`.
+  No new secrets.
+- Web deploy picks up the wizard/review/recipe changes automatically (Vercel).

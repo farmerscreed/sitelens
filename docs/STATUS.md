@@ -70,6 +70,26 @@ raw findings under subagents/workflows/wf_e9e89977*):
 - **Dashboard redesigned** — portfolio-complete hero, live Homes/Homes-sold/Collected, a
   "Portfolio by milestone" rollup.
 
+**WORKBOOK-AWARE BOQ INGEST SHIPPED (2026-08-04, DECISIONS #68).** The import
+front door now takes a real multi-sheet workbook whole, driven by the founder's
+two live Vantara documents (the QS original with split Material/Labour/Total
+rates and a cumulative sheet duplicating the per-floor sheets; the AI-rescoped
+working BOQ with a Rates & Inputs sheet, Materials Schedule and Summary).
+Wizard: every sheet classified in-browser (deterministic), duplicate sheets
+pre-excluded (≥60% containment in a same-or-larger sheet — the double-count
+trap), human confirms the workbook map, then per-sheet imports run sequentially
+through the unchanged pipeline. Core grammar: split-rate layouts, SECTION/BILL
+TOTAL check rows, numbered section headings, works-title element promotion;
+items keep rate_material/rate_labour beside the all-in rate all the way onto
+work items. Rates sheets seed the price book (genuine delivered prices;
+labour/build-ups filed as reference proposals — §7 upgraded: supply proposals
+now prefer the material-only rate). Schedule/summary sheets are captured as
+`boq_check_values` and the recipe page's new cross-check card grades the live
+take-off against the workbook's own figures (`type_takeoff_check`). 57
+migrations; `boq_workbook` SQL suite + `boq_workbook_test.mjs` node gate (runs
+the two REAL files via VANTARA_BOQ_DIR); all suites green; web build clean.
+⚠️ Cloud: migration + `boq-extract-pdf` redeploy needed (CLOUD_MIGRATION.md).
+
 **PHASE D — PHOTO GALLERY SHIPPED (2026-08-03).** Photos are now addressable per
 building: `media.building_id` + `fn_register_media(p_building)` (old signature
 dropped; back-fill from each report's building — the founder's 3 test photos now
