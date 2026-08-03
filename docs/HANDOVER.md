@@ -119,23 +119,29 @@ All registered in `scripts/verify_all.sh`.
 
 ---
 
-## 6. What's NEXT (the next phase)
+## 6. What's NEXT (the next phase — order set by the founder)
 
-1. **Founder eyeballs the new client surfaces on cloud** — dashboard, `/sales` (create a
-   buyer + a partner, record a payment), a building's milestone stepper, and both portal views
-   (create a Buyer link for PE009 + a Partner link, open each logged-out).
-2. **MOBILE PHASE** — this unblocks the biggest remaining gaps:
+**Build these in a NEW, large-context session (this session's context was full at handover):**
+
+1. **Client Hub — BUILD FIRST.** A light directory + per-client page aggregating sales /
+   payments / portal / house milestones — **NOT a CRM.** Full build-ready spec:
+   **`docs/CLIENT_HUB.md`** (thin `clients` table + `client_summary` view + `/clients` and
+   `/clients/[id]` + tests + deploy notes). ~half-day build, mostly reuse.
+2. **MOBILE PHASE — start with a BREAKDOWN + DISCUSSION before writing any code** (founder's
+   explicit instruction: agree the plan first, then implement).
    - `apps/mobile/` is a Flutter **scaffold** (M4-era: Drift offline store, outbox, sync,
      capture service). **Not runnable on this box** (no Flutter SDK) — needs a Flutter env.
-   - Wire real auth (phone OTP → `ApiClient`), camera capture, media upload to `report-media`.
-   - Build the **mobile "mark done" flow** (stage-led ticks, offline) — design agreed with the
-     founder earlier this session (separate flows: progress ticks vs granular finance).
-   - Then build the **in-web photo GALLERY** — the ONE deferred client piece. Photos are the #1
-     client trust driver, but none exist yet (they come from the field app); the portal already
-     shows the photo COUNT. Build the gallery (signed-URL thumbnails from the `report-media`
-     bucket, per building + project) once real photos flow in.
-3. **Finish web pilot testing:** Areas 6 (portal), 7 (Ask+AI), 8 (notifications) → the break-it
-   pass → M8 exit gate (21 consecutive days of real reports).
+   - Scope to present & agree: wire auth (phone OTP → `ApiClient`), in-app camera capture, media
+     upload to the `report-media` bucket; the **mobile "mark done" flow** (stage-led OFFLINE
+     ticks — design already agreed: progress ticks vs granular finance are SEPARATE flows); then
+     the **in-web photo GALLERY** (the ONE deferred client piece — signed-URL thumbnails per
+     building/project; buildable once real photos flow from the field app; the portal already
+     shows the photo COUNT).
+3. **Finish web pilot testing:** Areas 6 (portal buyer/partner), 7 (Ask+AI), 8 (notifications) →
+   break-it pass (`docs/M8_PILOT.md`) → M8 exit gate (21 consecutive days of real reports).
+
+Also, whenever convenient: the founder eyeballs the new client surfaces on cloud (dashboard,
+`/sales`, a building's milestone stepper, and both portal views via a Buyer + a Partner link).
 
 ---
 
