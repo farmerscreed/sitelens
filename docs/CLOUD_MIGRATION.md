@@ -130,3 +130,22 @@ cloud-move time. Append as we go. Region target: managed Supabase, London
   unset (defaults to anthropic/claude-sonnet-5 via OpenRouter).
 - At any future cloud move: re-apply all 35 migration files in order (they are the
   single source of truth), redeploy all 6 edge functions, re-set the secrets above.
+
+## 2026-08-03 — Member invite feature (deploy to cloud)
+
+- **Migration `20260803100000_member_admin.sql`** must be applied to cloud
+  (`gwzpqnnwflwkcrowolgx`) — it makes `app_users.phone` nullable and adds
+  `fn_require_org_admin`, `fn_auth_uid_by_email`, `fn_add_member`,
+  `fn_set_member_active`, `fn_org_members`.
+- **Deploy the `invite-member` Edge Function:**
+  `~/.local/bin/supabase functions deploy invite-member --project-ref gwzpqnnwflwkcrowolgx --use-api`.
+  It needs `SUPABASE_URL` / `SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY` —
+  all **auto-injected** by the platform, so **no new secret** to set.
+- **Invite email delivery:** `fn_add_member` writes a `member_invite` row to
+  `dev_outbox` (channel `email`). Whatever worker sends the portal's `portal_link`
+  emails (Resend, sender `noreply@leiko.app` — a VERIFIED domain, delivers to any
+  address) must also send this template, or the invitee just self-serves a code at
+  `/login`. The account exists regardless of whether the email lands.
+- **No cloud Auth setting change needed:** users are minted via the admin API
+  (`admin.createUser`, `email_confirm:true`), so the project's "allow new signups"
+  toggle is irrelevant — self-signup stays off, invite still works.
