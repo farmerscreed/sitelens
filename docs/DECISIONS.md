@@ -508,3 +508,21 @@ logged here so the founder can review drift. Newest at the bottom.
     back-links old sales; portal links prefill + file under the client. Explicitly NOT
     built (kept construction-management, not Salesforce): lead pipeline, marketing, tasks,
     document vaults, message threads, calendars.
+65. **Field ops: engineer stage ticks land instantly, labelled (mobile Phase A,
+    2026-08-03).** The PRD (§4) always gave the Site Engineer "mark building stages
+    complete" + "log materials in/out", but fn_complete_stage had been manager-gated
+    since M2 (web console was the only surface). Founder decision for the field app:
+    INSTANT + LABELLED beats propose-and-wait — the board/milestones/portals move the
+    moment the engineer ticks, the tick is visibly provenance-stamped, and a manager
+    can revert. Implementation: building_stage_progress gains completed_by +
+    completed_source ('web'|'field') per Rule 2; fn_complete_stage(p_source DEFAULT
+    'web') now admits the engineer role (client role + cross-org still 42501) and sets
+    approved_by ONLY for admin/pm — a field tick leaves approved_by NULL so it is never
+    silently equal to a manager tick; fn_reopen_stage (manager-only) reverts and rewinds
+    buildings.current_stage_id. Old 2-arg signature dropped (PostgREST ambiguity).
+    Materials needed NO change — fn_log_material_txn was already member-gated with the
+    AC-4 balance guard. Web: "from field" badge + an undo affordance on done stages.
+    The m2 test's "engineer cannot complete" assertion was deliberately FLIPPED (the
+    contract changed); field_ops.sql owns the full field contract. Devices decision:
+    the app targets ANDROID 8+ only (PRD spec + Nigerian field reality + APK sideload);
+    iOS stays open via Flutter but is deferred until someone real needs it.

@@ -70,6 +70,21 @@ raw findings under subagents/workflows/wf_e9e89977*):
 - **Dashboard redesigned** — portfolio-complete hero, live Homes/Homes-sold/Collected, a
   "Portfolio by milestone" rollup.
 
+**MOBILE PHASE STARTED — Phase A (server field ops) BUILT & DEPLOYED (2026-08-03).**
+The field-app plan is agreed with the founder (brainstorm doc'd in DECISIONS #65):
+the app is for the SITE ENGINEER only (Android 8+, APK sideload, email OTP now /
+Termii later), v1 = all three jobs (daily report+photos, mark work done, materials
+IN/OUT), field ticks land INSTANTLY labelled "from field". Phase A shipped:
+`field_ops` migration (completed_by/completed_source on building_stage_progress;
+fn_complete_stage admits engineers + p_source, approved_by only for managers;
+fn_reopen_stage = manager revert), web "from field" badge + undo on the building
+page, `field_ops` test suite (m2's engineer-blocked assertion deliberately flipped).
+Materials needed no change (already member-gated). **52 migrations, 33 suites
+green**, tsc clean. NEXT: Phase B (the Flutter app itself: auth, Today screen,
+3-step report flow, camera+stamp, mark-done, materials) → Phase C (GitHub Actions
+APK build — no Flutter SDK on dev boxes) → Phase D (in-web photo gallery + portal
+photos once real photos flow).
+
 **CLIENT HUB — BUILT (2026-08-03, this box).** The light client directory from
 docs/CLIENT_HUB.md, built with 4 agreed revisions (DECISIONS #64): `clients` table
 (email-dedup guard, Rule-1 write fns) with the client as the FRONT DOOR of a sale

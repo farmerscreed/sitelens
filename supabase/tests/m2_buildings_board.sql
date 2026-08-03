@@ -13,6 +13,16 @@ VALUES ('c0000000-0000-0000-0000-0000000000c1',
         'a0000000-0000-0000-0000-0000000000aa', 'M2 Test Estate',
         'a1111111-1111-1111-1111-111111111111');
 
+-- An engineer member of Org A (field_ops contract: engineers CAN complete stages).
+INSERT INTO app_users (id, full_name, phone)
+VALUES ('e1111111-1111-1111-1111-111111111111', 'Eng A', '+2348000000009')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO memberships (id, org_id, user_id, role)
+VALUES ('e2222222-2222-2222-2222-222222222222',
+        'a0000000-0000-0000-0000-0000000000aa',
+        'e1111111-1111-1111-1111-111111111111', 'engineer')
+ON CONFLICT (id) DO NOTHING;
+
 DO $$
 DECLARE
   org_a uuid := 'a0000000-0000-0000-0000-0000000000aa';
@@ -105,7 +115,8 @@ BEGIN
   c := fn_batch_cost(ba);   -- 40 × 100000 (type A stage cost) + 18 × 0
   IF c <> 4000000 THEN RAISE WARNING 'batch cost=% (expected 4000000)', c; fails:=fails+1; END IF;
 
-  -- ── authz: an engineer cannot stamp / complete / advance ──
+  -- ── authz: an engineer cannot stamp / advance, but CAN complete a stage
+  -- (field_ops contract, DECISIONS #65 — labelling covered in field_ops.sql) ──
   PERFORM set_config('request.jwt.claims', jsonb_build_object('sub', eng)::text, true);
   BEGIN PERFORM fn_create_buildings(tA, 1, proj, ba, ph, 'X');
     RAISE WARNING 'engineer stamped a building'; fails:=fails+1;
@@ -113,9 +124,10 @@ BEGIN
   BEGIN PERFORM fn_advance_batch(ba);
     RAISE WARNING 'engineer advanced a batch'; fails:=fails+1;
   EXCEPTION WHEN insufficient_privilege THEN NULL; END;
-  BEGIN PERFORM fn_complete_stage((SELECT id FROM buildings WHERE project_id=proj AND code='A005'), fnd);
-    RAISE WARNING 'engineer completed a stage'; fails:=fails+1;
-  EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+  SELECT id INTO b FROM buildings WHERE project_id=proj AND code='A005';
+  PERFORM fn_complete_stage(b, fnd);
+  IF (SELECT board_column FROM board_view WHERE id=b) <> 'DPC' THEN
+    RAISE WARNING 'engineer stage tick did not move A005 to DPC'; fails:=fails+1; END IF;
 
   -- ── 300-building scale sanity ──
   PERFORM set_config('request.jwt.claims', jsonb_build_object('sub', user_a)::text, true);

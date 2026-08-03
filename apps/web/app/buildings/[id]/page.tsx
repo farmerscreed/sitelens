@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { CompleteStageButton } from "@/components/CompleteStageButton";
+import { ReopenStageButton } from "@/components/ReopenStageButton";
 import { LogWorkDoneForm } from "@/components/LogWorkDoneForm";
 import { SnapshotBudgetButton } from "@/components/SnapshotBudgetButton";
 import { VariationAdder } from "@/components/VariationAdder";
@@ -38,7 +39,7 @@ export default async function BuildingDetail({ params }: { params: { id: string 
 
   const [{ data: stages }, { data: progress }, { data: materials }, { data: rva }, { data: evRows }, { data: money }, { data: finishRows }, { data: priceRows }, { data: msData }] = await Promise.all([
     supabase.from("type_stages").select("id,name,sequence").eq("building_type_id", b.building_type_id).order("sequence"),
-    supabase.from("building_stage_progress").select("stage_id,status,completed_at").eq("building_id", b.id),
+    supabase.from("building_stage_progress").select("stage_id,status,completed_at,completed_source").eq("building_id", b.id),
     supabase.from("materials_catalog").select("id,name,unit"),
     supabase.from("building_req_vs_actual").select("material_id,required,consumed,overrun,planned_total,remaining").eq("building_id", b.id),
     supabase.from("building_work_ev")
@@ -138,6 +139,7 @@ export default async function BuildingDetail({ params }: { params: { id: string 
   const hasSpend = materialSpend.length > 0 || expenseSpend.length > 0;
 
   const statusOf = new Map((progress ?? []).map((p) => [p.stage_id, p.status]));
+  const sourceOf = new Map((progress ?? []).map((p) => [p.stage_id, p.completed_source]));
   const matName = (id: string) => (materials ?? []).find((m) => m.id === id)?.name ?? id;
   const badge = (st: string) => st === "done" ? "badge-green" : st === "in_progress" ? "badge-accent" : "badge-muted";
 
@@ -352,13 +354,18 @@ export default async function BuildingDetail({ params }: { params: { id: string 
         <ol className="mt-3 space-y-1.5">
           {(stages ?? []).map((s) => {
             const st = statusOf.get(s.id) ?? "not_started";
+            const fromField = st === "done" && sourceOf.get(s.id) === "field";
             return (
               <li key={s.id} className="flex items-center justify-between gap-3 rounded-lg px-2 py-1.5 text-sm">
                 <span className="flex items-center gap-3 text-[#c7cedb]">
                   <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-white/[0.06] text-xs font-semibold text-accent-300">{s.sequence}</span>
                   {s.name}
+                  {fromField && <span className="badge badge-accent text-[10px]">from field</span>}
                 </span>
-                <span className={`badge ${badge(st)}`}>{st.replace("_", " ")}</span>
+                <span className="flex items-center gap-2.5">
+                  {st === "done" && <ReopenStageButton buildingId={b.id} stageId={s.id} stageName={s.name} />}
+                  <span className={`badge ${badge(st)}`}>{st.replace("_", " ")}</span>
+                </span>
               </li>
             );
           })}
