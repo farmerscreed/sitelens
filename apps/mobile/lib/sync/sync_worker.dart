@@ -68,6 +68,7 @@ class SyncWorker {
             'p_mock_location': m.mockLocation,
             'p_phash': _hexToBits(m.phashHex),
             'p_mime': 'image/jpeg',
+            'p_building': m.buildingId,
           });
           state = await _setState(m.id, 'registered');
         }

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { CompleteStageButton } from "@/components/CompleteStageButton";
 import { ReopenStageButton } from "@/components/ReopenStageButton";
+import { BuildingGallery } from "@/components/BuildingGallery";
 import { LogWorkDoneForm } from "@/components/LogWorkDoneForm";
 import { SnapshotBudgetButton } from "@/components/SnapshotBudgetButton";
 import { VariationAdder } from "@/components/VariationAdder";
@@ -183,6 +184,9 @@ export default async function BuildingDetail({ params }: { params: { id: string 
           </div>
         </section>
       )}
+
+      {/* Photos from the field — the client-trust surface (Phase D). */}
+      <BuildingGallery buildingId={b.id} />
 
       {/* Money card — this building as a financial event, judged against its own
           budget photo (the recipe stays a live document). */}
