@@ -70,6 +70,18 @@ raw findings under subagents/workflows/wf_e9e89977*):
 - **Dashboard redesigned** — portfolio-complete hero, live Homes/Homes-sold/Collected, a
   "Portfolio by milestone" rollup.
 
+**FIELD APP TESTED LIVE ON THE FOUNDER'S PHONE (2026-08-03) — all 3 jobs PASS
+against cloud:** daily report (3 stamped photos → report row + 3 media + 9 storage
+objects verified), stage tick (PE009 Frame done, source='field', board → Upper
+Floor), materials IN (Cement +1, balance 10→11, idempotent). Fixes shipped from
+the test: login-button rebuild bug; proper app id (app.sitelens, needs one
+reinstall); SEARCHABLE MATERIAL PICKER (founder feedback: type-to-filter +
+recents-first + last-used default). ⚠️ OPEN: CI signs each APK with a fresh debug
+key → updates DON'T install over the old build (uninstall wipes the offline
+queue!) — add a persistent keystore (repo secret) before pilot engineers get
+phones. Founder's Gmail MCP is a different mailbox; OTP codes can't be auto-read.
+Test cement bag (+1) is real store data — void from web if unwanted.
+
 **MOBILE Phase B+C — FIELD APP BUILT, CI GREEN, APK PRODUCED (2026-08-03).**
 The full engineer app on the M4 offline scaffold (`apps/mobile/`): email-OTP login
 (org-claim bootstrap; Termii later), Today home (report status + "N to send" chip),
