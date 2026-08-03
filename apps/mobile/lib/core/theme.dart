@@ -24,7 +24,7 @@ ThemeData siteLensTheme() {
       centerTitle: false,
       titleTextStyle: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
     ),
-    cardTheme: CardTheme(
+    cardTheme: CardThemeData(
       color: kInkCard,
       elevation: 0,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
