@@ -6,6 +6,7 @@ import { BulkKindAccept } from "@/components/BulkKindAccept";
 import { PriceMissingPanel } from "@/components/PriceMissingPanel";
 import { AssemblyProposals } from "@/components/AssemblyProposals";
 import { ScopeToggle } from "@/components/ScopeToggle";
+import { TakeoffCheckCard, type CheckViewRow } from "@/components/TakeoffCheckCard";
 import { IconAlert } from "@/components/icons";
 
 type WorkRow = {
@@ -49,6 +50,7 @@ export default async function RecipeDetail({ params }: { params: { id: string } 
   const [
     { data: type }, { data: stages }, { data: items }, { data: costs }, { data: materials },
     { data: workItems }, { data: comps }, { data: convs }, { data: assemblies }, { data: priceRows },
+    { data: checkRows },
   ] = await Promise.all([
     supabase.from("building_types").select("id,name,category,version").eq("id", typeId).single(),
     supabase.from("type_stages").select("id,name,sequence,expected_days").eq("building_type_id", typeId).order("sequence"),
@@ -65,6 +67,9 @@ export default async function RecipeDetail({ params }: { params: { id: string } 
     supabase.from("material_prices").select("material_id,unit_price,effective_from")
       .lte("effective_from", new Date().toISOString().slice(0, 10))
       .order("effective_from", { ascending: false }),
+    supabase.from("type_takeoff_check")
+      .select("id,source_sheet,section,label,unit,stated_qty,stated_amount,material_id,stated_qty_converted,computed_qty,variance_pct")
+      .eq("building_type_id", typeId).order("source_sheet").order("label"),
   ]);
 
   if (!type) redirect("/recipes");
@@ -392,6 +397,17 @@ export default async function RecipeDetail({ params }: { params: { id: string } 
             </details>
           )}
         </>
+      )}
+
+      {/* The workbook grades the recipe: its own schedule/totals vs the live
+          take-off. Visible even before bills are confirmed — captured check
+          values shouldn't hide while the take-off is still empty. */}
+      {(checkRows ?? []).length > 0 && (
+        <TakeoffCheckCard
+          rows={(checkRows ?? []) as CheckViewRow[]}
+          materials={materials ?? []}
+          estTotal={estTotal}
+        />
       )}
 
       <RecipeEditor

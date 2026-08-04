@@ -9,6 +9,7 @@ export type ProposalCandidate = {
   description: string;
   mix_ratio: string | null;
   boq_rate: number | null;
+  boq_rate_labour?: number | null;  // split-rate bills separate labour explicitly
   unit: string | null;
   context?: string | null;    // section/element text — scanned for grade when the row itself is silent
 };
@@ -222,7 +223,7 @@ type Group = {
   ratioStr: string | null; thickness: number | null; dryFactor: number;
   rows: ProposalCandidate[]; comps: CompDraft[]; working: string | null;
   repairNote: string | null; contextNote: string | null;
-  avgRate: number | null; labour: string;
+  avgRate: number | null; labour: string; labourFromBill: boolean;
   existing: ExistingAssembly | null; useExisting: boolean;
 };
 
@@ -271,17 +272,22 @@ export function AssemblyProposals({
           unit, ratioStr, thickness: sig.thickness, dryFactor: derived.dryFactor,
           rows: [], comps: derived.comps, working: derived.working,
           repairNote: sig.repairNote, contextNote: sig.contextNote,
-          avgRate: null, labour: "", existing, useExisting: !!existing,
+          avgRate: null, labour: "", labourFromBill: false, existing, useExisting: !!existing,
         };
         map.set(key, g);
       }
       g.rows.push(c);
     }
-    // Implied labour per group: avg BOQ rate − derived material cost, floored at 0.
+    // Labour per group: a split-rate bill states it outright — use that. Otherwise
+    // the IMPLIED labour: avg BOQ rate − derived material cost, floored at 0.
     for (const g of map.values()) {
       const rates = g.rows.map((r) => r.boq_rate).filter((r): r is number => r != null);
       g.avgRate = rates.length ? rates.reduce((a, b) => a + b, 0) / rates.length : null;
-      if (g.avgRate != null) {
+      const stated = g.rows.map((r) => r.boq_rate_labour).filter((r): r is number => r != null);
+      if (stated.length) {
+        g.labour = String(Math.round(stated.reduce((a, b) => a + b, 0) / stated.length));
+        g.labourFromBill = true;
+      } else if (g.avgRate != null) {
         const matCost = g.comps.reduce((a, c) =>
           a + (c.materialId && prices[c.materialId] != null ? Number(c.qty) * Number(c.waste) * prices[c.materialId] : 0), 0);
         g.labour = String(Math.max(0, Math.round(g.avgRate - matCost)));
@@ -490,7 +496,9 @@ export function AssemblyProposals({
                       onChange={(e) => patchGroup(gi, { labour: e.target.value })} />
                     <span className="text-[#8b95a7]">per {g.unit || "unit"}</span>
                   </span>
-                  {g.avgRate != null ? (
+                  {g.labourFromBill ? (
+                    <span className="text-xs text-emerald-300/80">(stated by the bill — it prices labour separately)</span>
+                  ) : g.avgRate != null ? (
                     <span className="text-xs text-[#8b95a7]">
                       (BOQ rate {ngn(g.avgRate)} − materials {ngn(matCostOf(g))}{g.comps.some((c) => !c.materialId || prices[c.materialId!] == null) ? ", unpriced components counted at ₦0" : ""})
                     </span>

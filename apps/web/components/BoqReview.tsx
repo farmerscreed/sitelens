@@ -9,7 +9,8 @@ import { AssemblyProposals, type ProposalAttachment } from "@/components/Assembl
 type Row = {
   id: string; raw_text: string; resolved_text: string | null;
   parsed_qty: number | null; parsed_unit: string | null; unit_normalized: string | null;
-  parsed_rate: number | null; amount: number | null;
+  parsed_rate: number | null; parsed_rate_material: number | null; parsed_rate_labour: number | null;
+  amount: number | null;
   mapped_material_id: string | null; confidence: number | null; status: string;
   row_kind: string; boq_ref: string | null; section_path: string[] | null;
   is_priced: boolean; is_provisional: boolean;
@@ -43,7 +44,7 @@ const FLAG_LABEL: Record<string, string> = {
 // grouped by the AI's material guess (or the first 40 chars of the text).
 type MatDraft = {
   key: string; on: boolean; name: string; unit: string;
-  price: string; priceOn: boolean; hasRate: boolean; row_ids: string[];
+  price: string; priceOn: boolean; hasRate: boolean; matOnly: boolean; row_ids: string[];
 };
 function buildMatCandidates(items: Row[]): MatDraft[] {
   const map = new Map<string, MatDraft>();
@@ -56,14 +57,18 @@ function buildMatCandidates(items: Row[]): MatDraft[] {
     const key = label.toLowerCase();
     let d = map.get(key);
     if (!d) {
-      d = { key, on: true, name: label, unit: r.unit_normalized ?? r.parsed_unit ?? "", price: "", priceOn: true, hasRate: false, row_ids: [] };
+      d = { key, on: true, name: label, unit: r.unit_normalized ?? r.parsed_unit ?? "", price: "", priceOn: true, hasRate: false, matOnly: false, row_ids: [] };
       map.set(key, d);
     }
     d.row_ids.push(r.id);
     if (!d.unit && (r.unit_normalized ?? r.parsed_unit)) d.unit = r.unit_normalized ?? r.parsed_unit ?? "";
-    // Only a genuine supply rate may prefill a price (§7 guardrail — the server enforces it too).
-    if (!d.hasRate && r.suggested_kind === "material_supply" && r.parsed_rate != null) {
-      d.hasRate = true; d.price = String(r.parsed_rate);
+    // Only a genuine supply rate may prefill a price (§7 guardrail — the server
+    // enforces it too). Split-rate bills give the MATERIAL component — the
+    // better price signal (labour already separated out by the bill).
+    if (!d.hasRate && r.suggested_kind === "material_supply" && (r.parsed_rate_material ?? r.parsed_rate) != null) {
+      d.hasRate = true;
+      d.matOnly = r.parsed_rate_material != null;
+      d.price = String(r.parsed_rate_material ?? r.parsed_rate);
     }
   }
   return [...map.values()];
@@ -118,6 +123,7 @@ export function BoqReview({
     () => items.filter((r) => r.suggested_kind === "composite").map((r) => ({
       id: r.id, description: r.resolved_text ?? r.raw_text,
       mix_ratio: r.mix_ratio, boq_rate: r.parsed_rate,
+      boq_rate_labour: r.parsed_rate_labour,
       unit: r.unit_normalized ?? r.parsed_unit,
       // Section headings often carry the grade the line itself omits.
       context: (r.section_path ?? []).filter(Boolean).join(" · ") || null,
@@ -358,7 +364,9 @@ export function BoqReview({
                               <label className="mt-1 flex items-start gap-1.5 text-[11px] leading-snug text-[#8b95a7]">
                                 <input type="checkbox" checked={d.priceOn} onChange={(e) => patchMat(i, { priceOn: e.target.checked })}
                                   className="mt-0.5 h-3.5 w-3.5 rounded border-white/20 bg-transparent accent-accent-500" />
-                                set as current price (all-in BOQ rate — includes delivery/labour)
+                                {d.matOnly
+                                  ? "set as current price (material-only BOQ rate — the bill separates labour)"
+                                  : "set as current price (all-in BOQ rate — includes delivery/labour)"}
                               </label>
                             </div>
                           ) : (
@@ -467,7 +475,12 @@ export function BoqReview({
                         </td>
                         <td><input type="number" className="input w-20 py-1.5" value={s.quantity} onChange={(e) => patch(i, { quantity: Number(e.target.value) })} /></td>
                         <td><input className="input w-16 py-1.5" value={s.unit} onChange={(e) => patch(i, { unit: e.target.value })} /></td>
-                        <td className="text-right text-[#8b95a7]">{r.parsed_rate != null ? ngn(r.parsed_rate) : "—"}</td>
+                        <td className="text-right text-[#8b95a7]">
+                          {r.parsed_rate != null ? ngn(r.parsed_rate) : "—"}
+                          {r.parsed_rate_material != null && r.parsed_rate_labour != null && (
+                            <div className="text-[10px] text-[#5b6473]">mat {ngn(r.parsed_rate_material)} + lab {ngn(r.parsed_rate_labour)}</div>
+                          )}
+                        </td>
                       </tr>
                     );
                   })}

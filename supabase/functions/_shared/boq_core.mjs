@@ -38,24 +38,37 @@ const RX = {
   toSummary: /(to|carried\s+to)\s+sum+ary\b|carried\s+to\s+general\s+summary/i,
   pageFooter: /^page\s+\d+$/i,
   grandTotal: /general\s+summary|total\s+cost|sub-?\s*total|add\s+vat|less\s+wht/i,
+  // "SECTION TOTAL" / "BILL 2 — … — BILL TOTAL" check rows: sheet-per-section bills
+  // put a rate-column SUM on these, so they must be caught before the plain
+  // no-qty-no-rate summary rule ever sees them.
+  sectionTotal: /(?:^|\s)(section|bill|element|grand)\s+total\b/i,
   element: /^element\b/i,
   ditto: /^ditto\b/i,
   mixRatio: /\b1\s*:\s*\d+(?:\.\d+)?(?:\s*:\s*\d+(?:\.\d+)?)?\b/,
   provisional: /provisional/i,
+  numberedHeading: /^\d+(\.\d+)?\s+\S/,
 };
 
-// Map a header row's cells → column roles.
+// Map a header row's cells → column roles. Split materials/labour bills
+// ("Material Rate | Labour Rate | Total Rate") keep the components: `rate` is
+// always the ALL-IN rate; rateMaterial/rateLabour ride alongside.
+// First match wins per role — trailing columns like "Qty source / notes" must
+// never steal the real Qty column.
 function detectLayout(cells) {
   const layout = {};
+  const set = (k, i) => { if (layout[k] == null) layout[k] = i; };
   cells.forEach((c, i) => {
     const t = String(c ?? "").trim().toLowerCase();
     if (!t) return;
-    if (/^s\/?no?$/.test(t)) layout.sn = i;
-    else if (/desc/.test(t)) layout.desc = i;
-    else if (/^qty|quant/.test(t)) layout.qty = i;
-    else if (/^unit/.test(t)) layout.unit = i;
-    else if (/^rate/.test(t)) layout.rate = i;
-    else if (/^amount/.test(t)) layout.amount = i;
+    if (/^s\/?no?$/.test(t) || /^(item|ref)\.?$/.test(t)) set("sn", i);
+    else if (/desc/.test(t)) set("desc", i);
+    else if (/^qty|quant/.test(t)) set("qty", i);
+    else if (/^unit/.test(t)) set("unit", i);
+    else if (/^material\s*rate/.test(t)) set("rateMaterial", i);
+    else if (/^labou?r\s*rate/.test(t)) set("rateLabour", i);
+    else if (/^(total\s*)?rate/.test(t)) set("rate", i);
+    else if (/^(material|labou?r)\s*amount/.test(t)) { /* component amounts: unused */ }
+    else if (/^(total\s*)?amount/.test(t)) set("amount", i);
   });
   return layout.desc != null && layout.qty != null ? layout : null;
 }
@@ -86,9 +99,29 @@ export function annotateGrid(grid) {
     if (!joined) continue; // blank
 
     // Column-header rows re-appear throughout; they (re)define the layout.
-    if (RX.columnHeader.test(joined) && joined.length < 80) {
+    // A REAL header is one detectLayout accepts — split-rate headers run well past
+    // any length cap, and prose notes containing "description" never have a
+    // separate Qty cell, so layout success is the discriminator.
+    if (RX.columnHeader.test(joined) && (joined.length < 80 || detectLayout(cells))) {
       const l = detectLayout(cells);
-      if (l) layout = l;
+      if (l) {
+        layout = l;
+        // A works title sitting directly above its own table header names the
+        // element zone ("SUBSTRUCTURE WORKS" / "BILL 2 — SUBSTRUCTURE"): promote
+        // it, so sheet-per-section bills group and bootstrap like elemental ones.
+        for (let k = rows.length - 1, seen = 0; k >= 0 && seen < 3; k--, seen++) {
+          const p = rows[k];
+          if (!(p.row_kind === "title" || p.row_kind === "section_header" || p.row_kind === "note")) break;
+          if (p.amount == null && p.raw_text.length < 90 && !RX.element.test(p.raw_text) &&
+              (/^(bill|section)\b/i.test(p.raw_text) || /\bworks\b/i.test(p.raw_text) || isUpperish(p.raw_text))) {
+            p.row_kind = "element_header";
+            element = p.raw_text; section = null;
+            p.section_path = [element];
+            provisionalZone = RX.provisional.test(element);
+            break;
+          }
+        }
+      }
       rows.push(base(i, "column_header", joined));
       continue;
     }
@@ -113,6 +146,10 @@ export function annotateGrid(grid) {
     const unitRaw = layout.unit != null ? String(cells[layout.unit] ?? "").trim() : "";
     const r = layout.rate != null ? parseNum(cells[layout.rate]) : { value: null, coerced: false };
     const rateText = layout.rate != null ? String(cells[layout.rate] ?? "").trim() : "";
+    const rm = layout.rateMaterial != null ? parseNum(cells[layout.rateMaterial]) : { value: null, coerced: false };
+    const rl = layout.rateLabour != null ? parseNum(cells[layout.rateLabour]) : { value: null, coerced: false };
+    // The working rate is always ALL-IN: the total column, or material+labour.
+    const rate = r.value ?? (rm.value != null || rl.value != null ? (rm.value ?? 0) + (rl.value ?? 0) : null);
     const a = layout.amount != null ? parseNum(cells[layout.amount]) : { value: null, coerced: false };
     const amount = a.value && a.value !== 0 ? a.value : null;
     const text = desc || joined;
@@ -126,13 +163,19 @@ export function annotateGrid(grid) {
       rows.push({ ...base(i, "collection", text, element, section), amount });
       continue;
     }
-    if (RX.toSummary.test(text) || (RX.grandTotal.test(text) && q.value == null && r.value == null)) {
+    // "SECTION TOTAL" / "… BILL TOTAL" rows: split-rate bills sum the rate columns
+    // here, so they carry a rate — only qty must be absent.
+    if (RX.sectionTotal.test(text) && q.value == null) {
+      rows.push({ ...base(i, "summary", text, element, section), amount });
+      continue;
+    }
+    if (RX.toSummary.test(text) || (RX.grandTotal.test(text) && q.value == null && rate == null)) {
       rows.push({ ...base(i, "summary", text, element, section), amount });
       continue;
     }
     // Stated totals with no S/N, no qty, no rate — summary lines (e.g. the final
     // SUMMARY zone: "Element 1 Substructure  76,994,235").
-    if (amount != null && q.value == null && r.value == null && !sn) {
+    if (amount != null && q.value == null && rate == null && !sn) {
       rows.push({ ...base(i, "summary", text, element, section), amount });
       continue;
     }
@@ -149,8 +192,16 @@ export function annotateGrid(grid) {
       rows.push(base(i, "element_header", text, element));
       continue;
     }
-    const hasNumbers = q.value != null || r.value != null || amount != null;
+    const hasNumbers = q.value != null || rate != null || amount != null;
     if (!hasNumbers && !unitRaw) {
+      // Numbered work-section headings ("2.0 Earthworks", "3.1 STAGE A: …") —
+      // mixed-case, so the caps heuristic below never sees them.
+      if (RX.numberedHeading.test(text) && text.length < 90) {
+        section = text;
+        if (RX.provisional.test(text)) provisionalZone = true;
+        rows.push(base(i, "section_header", text, element, section));
+        continue;
+      }
       // No measurables at all: a heading if short/caps, otherwise a note.
       if (text.length < 60 && isUpperish(text)) {
         // A short caps row right after an ELEMENT header names it (ELEMENT 2 → FRAME) —
@@ -172,7 +223,7 @@ export function annotateGrid(grid) {
     }
     // Long sentence with an S/N but nothing measurable except maybe "Item" —
     // the sample's preamble notes A–C. Notes, not items.
-    if (q.value == null && r.value == null && amount == null && text.length > 90) {
+    if (q.value == null && rate == null && amount == null && text.length > 90) {
       rows.push(base(i, "note", text, element, section));
       continue;
     }
@@ -184,11 +235,11 @@ export function annotateGrid(grid) {
     if (unitRaw && !unit_normalized) flags.push("unknown_unit");
     if (q.value == null) flags.push("missing_qty");
     if (q.value != null && !unitRaw) flags.push("missing_unit");
-    const is_priced = r.value != null && r.value > 0;
+    const is_priced = rate != null && rate > 0;
     if (!is_priced && /not\s*applicable/i.test(rateText)) flags.push("rate_not_applicable");
     // Arithmetic self-check against the bill's own AMOUNT cell (§5).
-    if (q.value != null && r.value != null && amount != null) {
-      const expect = q.value * r.value;
+    if (q.value != null && rate != null && amount != null) {
+      const expect = q.value * rate;
       if (Math.abs(expect - amount) > Math.max(1, amount * 0.005)) flags.push("amount_mismatch");
     }
     let resolved_text = text;
@@ -204,7 +255,8 @@ export function annotateGrid(grid) {
       boq_ref: sn || null,
       resolved_text,
       qty: q.value, unit: unitRaw || null, unit_normalized,
-      rate: r.value, amount,
+      rate, amount,
+      rate_material: rm.value, rate_labour: rl.value,
       is_priced,
       is_provisional: provisionalZone || RX.provisional.test(text) || unitRaw.toLowerCase() === "sum",
       mix_ratio: mix ? mix[0].replace(/\s+/g, "") : null,
@@ -220,6 +272,7 @@ export function annotateGrid(grid) {
       row_no: row_no + 1, row_kind, raw_text,
       boq_ref: null, resolved_text: null,
       qty: null, unit: null, unit_normalized: null, rate: null, amount: null,
+      rate_material: null, rate_labour: null,
       is_priced: true, is_provisional: false, mix_ratio: null,
       section_path: [el, sec].filter(Boolean),
       flags: [],
@@ -360,6 +413,8 @@ export function toStagePayload(rows, modelId) {
     parsed_qty: r.qty != null ? String(r.qty) : "",
     parsed_unit: r.unit ?? "",
     parsed_rate: r.rate != null ? String(r.rate) : "",
+    parsed_rate_material: r.rate_material != null ? String(r.rate_material) : "",
+    parsed_rate_labour: r.rate_labour != null ? String(r.rate_labour) : "",
     confidence: r.confidence != null ? String(r.confidence) : "",
     row_kind: r.row_kind,
     boq_ref: r.boq_ref ?? "",
