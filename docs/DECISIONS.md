@@ -601,3 +601,13 @@ logged here so the founder can review drift. Newest at the bottom.
     NO (advised, accepted): native ingest + reconciliation against the bill's own
     totals is the trust mechanism, and a reformatted intermediate can't be checked
     against itself; revisit only if a document class defeats the extractor.
+70. **Prices before bills — import flow reordered (founder feedback, 2026-08-04).**
+    Second first-use correction, and the founder was right: the wizard's route
+    ordered "extract bills → seed prices → review" to overlap extraction time
+    with price entry — a wall-clock optimization that traded away clarity. The
+    honest constraint is only that prices exist BEFORE review/confirm (that is
+    when supply lines price, implied labour computes, and dropdowns populate);
+    extraction never touches prices. But prices-first is the better human order:
+    quick, impossible to get wrong, and the rates sheet's materials are already
+    in the catalog when bills arrive for review. The rates panel now sits ABOVE
+    the extract step and the stepper leads with it.
