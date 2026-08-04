@@ -70,6 +70,17 @@ raw findings under subagents/workflows/wf_e9e89977*):
 - **Dashboard redesigned** — portfolio-complete hero, live Homes/Homes-sold/Collected, a
   "Portfolio by milestone" rollup.
 
+**RECIPE COVERS + GUIDED IMPORT FLOW (2026-08-04, DECISIONS #69).** First-use
+founder feedback on the workbook ingest, same day: (1) recipes carry a cover
+photo of the structure (new `type-covers` bucket + `fn_set_type_cover`, shown on
+/recipes cards + recipe header, upload on the recipe page); (2) the import flow
+now steers — live stepper on the wizard (seed prices FIRST, then bills), "Start
+reviewing" on the first staged bill, confirm hands you the NEXT bill with a
+remaining count, and /boq-import lists staged imports to continue from; (3)
+external-AI pre-format template decided NOT needed (native ingest + own-totals
+reconciliation is the trust mechanism). `type_cover` suite; 58 migrations, all
+green; build clean. Cloud: `type_cover` migration applied same day.
+
 **WORKBOOK-AWARE BOQ INGEST SHIPPED (2026-08-04, DECISIONS #68).** The import
 front door now takes a real multi-sheet workbook whole, driven by the founder's
 two live Vantara documents (the QS original with split Material/Labour/Total

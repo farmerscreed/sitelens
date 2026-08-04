@@ -584,3 +584,20 @@ logged here so the founder can review drift. Newest at the bottom.
     NULL variance, never a guess. (f) **Element promotion heuristic** — a works
     title directly above its own column header names the element zone (how both
     real workbooks are structured); verified against the NPC-class grammar tests.
+69. **Recipe covers + guided import flow (founder feedback, 2026-08-04).**
+    (a) Building types get a COVER photo (render/elevation) shown on the recipe
+    library cards and recipe header — one display-size image in a new private
+    `type-covers` bucket (org-prefix keys, 15-min signed URLs, fn_set_type_cover
+    with an org-prefix guard). Judgment call: this is a design asset, not site
+    media, so the three-derivative pipeline (PRD §5.3) deliberately does NOT
+    apply. (b) The founder found the multi-bill import disorienting, so the flow
+    now steers: a live "route through this workbook" stepper on the wizard
+    (extract → seed prices FIRST → review bills in order → capture cross-checks
+    → recipe), a "Start reviewing" button on the first staged bill, the review
+    finish screen hands the user the NEXT unconfirmed bill (with a remaining
+    count), and /boq-import shows a "continue where you left off" list of staged
+    imports so leaving the page never loses the thread. (c) Founder asked whether
+    a downloadable template for external-AI pre-formatting is needed — decided
+    NO (advised, accepted): native ingest + reconciliation against the bill's own
+    totals is the trust mechanism, and a reformatted intermediate can't be checked
+    against itself; revisit only if a document class defeats the extractor.

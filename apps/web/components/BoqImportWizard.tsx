@@ -88,6 +88,8 @@ export function BoqImportWizard({ orgId, types }: { orgId: string; types: Type[]
   const gridsRef = useRef<Record<string, Grid>>({});
   const [runs, setRuns] = useState<RunEntry[] | null>(null);
   const [elapsed, setElapsed] = useState(0);
+  const [ratesDone, setRatesDone] = useState(false);
+  const [checksDone, setChecksDone] = useState(0);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => () => { if (tickRef.current) clearInterval(tickRef.current); }, []);
 
@@ -324,6 +326,50 @@ export function BoqImportWizard({ orgId, types }: { orgId: string; types: Type[]
         {err && <p className="mt-3 flex items-start gap-1.5 text-sm text-red-300"><IconAlert className="mt-0.5 h-4 w-4 shrink-0" /><span className="break-words">{err}</span></p>}
       </section>
 
+      {/* The route through a workbook — always visible once the map exists, so
+          nobody is ever left wondering what comes next. */}
+      {wbMap && (
+        <section className="rounded-2xl border border-accent-500/25 bg-accent-500/[0.05] p-4">
+          <h2 className="text-sm font-semibold text-white">Your route through this workbook</h2>
+          <ol className="mt-3 space-y-2 text-sm">
+            {[
+              {
+                label: `Extract the ${pickedBills.length || "ticked"} bill sheet${pickedBills.length === 1 ? "" : "s"} — one click below runs them all, one at a time`,
+                state: allSettled ? "done" : runs ? "current" : "current",
+              },
+              ...(ratesSheets.length > 0 ? [{
+                label: "Seed your price book from the rates sheet — do this BEFORE reviewing bills, so supply lines price immediately",
+                state: ratesDone ? "done" : allSettled ? "current" : "todo",
+              }] : []),
+              {
+                label: "Review & confirm each bill, top to bottom — after each confirm, the review page hands you the next bill",
+                state: allSettled && (ratesSheets.length === 0 || ratesDone) ? "current" : "todo",
+              },
+              ...(checkSheets.length > 0 ? [{
+                label: "Capture the schedule/summary sheets as cross-check values",
+                state: checksDone >= checkSheets.length ? "done" : "todo",
+              }] : []),
+              {
+                label: "Open the recipe: attach mixes in Finish setup, then read the cross-check card — it tells you if the recipe reproduces the workbook",
+                state: "todo",
+              },
+            ].map((s, i) => (
+              <li key={i} className="flex items-start gap-2.5">
+                <span className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full text-[11px] font-semibold ${
+                  s.state === "done" ? "bg-emerald-500/20 text-emerald-300"
+                  : s.state === "current" ? "bg-accent-500/25 text-accent-200"
+                  : "bg-white/[0.06] text-[#5b6473]"}`}>
+                  {s.state === "done" ? "✓" : i + 1}
+                </span>
+                <span className={s.state === "done" ? "text-[#8b95a7] line-through decoration-white/20" : s.state === "current" ? "text-white" : "text-[#8b95a7]"}>
+                  {s.label}
+                </span>
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
+
       {/* The workbook map — the human confirms what each sheet IS before import. */}
       {wbMap && !runs && (
         <section className="card">
@@ -372,7 +418,7 @@ export function BoqImportWizard({ orgId, types }: { orgId: string; types: Type[]
             {!allSettled && <span className="font-mono text-xs text-[#8b95a7]">{elapsed}s</span>}
           </div>
           <ol className="mt-4 space-y-3">
-            {runs.map((r) => (
+            {runs.map((r, i) => (
               <li key={r.name} className="flex items-start gap-3 text-sm">
                 {r.state === "done" ? (
                   <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-emerald-500/15 text-emerald-300"><IconCheck className="h-3.5 w-3.5" /></span>
@@ -384,6 +430,7 @@ export function BoqImportWizard({ orgId, types }: { orgId: string; types: Type[]
                   <span className="grid h-5 w-5 shrink-0 place-items-center"><span className="h-1.5 w-1.5 rounded-full bg-white/20" /></span>
                 )}
                 <div className="min-w-0">
+                  <span className="mr-1.5 text-xs text-[#5b6473]">{i + 1}.</span>
                   <span className={r.state === "pending" ? "text-[#5b6473]" : "text-white"}>{r.name}</span>
                   {r.state === "running" && r.progress && (
                     <span className="ml-2 text-xs text-accent-300">
@@ -401,22 +448,30 @@ export function BoqImportWizard({ orgId, types }: { orgId: string; types: Type[]
               </li>
             ))}
           </ol>
-          {!allSettled && <p className="mt-3 text-xs text-[#5b6473]">Large bills can take a couple of minutes each — sheets run one at a time.</p>}
-          {allSettled && doneRuns.length > 1 && (
-            <p className="mt-4 text-sm text-[#8b95a7]">
-              {doneRuns.length} import{doneRuns.length === 1 ? "" : "s"} staged — review and confirm each one
-              (start with the first; stages and materials you bootstrap there carry over to the rest).
-            </p>
+          {!allSettled && <p className="mt-3 text-xs text-[#5b6473]">Large bills can take a couple of minutes each — sheets run one at a time. Stay on this page.</p>}
+          {allSettled && doneRuns.length > 0 && (
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <Link href={`/boq-import/${doneRuns[0].importId}`} className="btn btn-primary">
+                Start reviewing — {doneRuns[0].name} <IconChevron className="h-4 w-4 -rotate-90" />
+              </Link>
+              <span className="text-xs text-[#8b95a7]">
+                {ratesSheets.length > 0 && !ratesDone
+                  ? "Tip: seed the prices below FIRST, then review — supply lines will price immediately."
+                  : "Confirm each bill in order; the review page hands you the next one. Stages and materials you bootstrap carry over."}
+              </span>
+            </div>
           )}
         </section>
       )}
 
       {/* The workbook's other lanes — visible as soon as the map exists. */}
       {wbMap && ratesSheets.map((s) => (
-        <RatesSheetPanel key={s.name} orgId={orgId} sheetName={s.name} rows={s.rows} />
+        <RatesSheetPanel key={s.name} orgId={orgId} sheetName={s.name} rows={s.rows}
+          onDone={() => setRatesDone(true)} />
       ))}
       {wbMap && typeId && checkSheets.map((s) => (
-        <CheckSheetPanel key={s.name} buildingTypeId={typeId} sheetName={s.name} role={s.role} rows={s.rows} />
+        <CheckSheetPanel key={s.name} buildingTypeId={typeId} sheetName={s.name} role={s.role} rows={s.rows}
+          onDone={() => setChecksDone((n) => n + 1)} />
       ))}
     </div>
   );

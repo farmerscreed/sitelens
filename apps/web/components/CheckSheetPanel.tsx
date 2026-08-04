@@ -19,8 +19,8 @@ const ngn = (n: number | null | undefined) =>
 // prices — they exist to grade the recipe, exactly as reconciliation grades the
 // extraction.
 export function CheckSheetPanel({
-  buildingTypeId, sheetName, role, rows,
-}: { buildingTypeId: string; sheetName: string; role: string; rows: CheckRow[] }) {
+  buildingTypeId, sheetName, role, rows, onDone,
+}: { buildingTypeId: string; sheetName: string; role: string; rows: CheckRow[]; onDone?: () => void }) {
   const supabase = createClient();
   const [drafts, setDrafts] = useState<Draft[]>(rows.map((r) => ({ ...r, on: true })));
   const [busy, setBusy] = useState(false);
@@ -45,6 +45,7 @@ export function CheckSheetPanel({
     else {
       setMsg({ ok: true, t: `${data} check value(s) captured — the recipe page now grades the take-off against them.` });
       setDone(true);
+      onDone?.();
     }
   }
 

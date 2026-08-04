@@ -1,8 +1,10 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { activeOrgFromToken } from "@/lib/activeOrg";
 import { BoqImportWizard } from "@/components/BoqImportWizard";
 import { PageHeader } from "@/components/PageHeader";
+import { IconChevron } from "@/components/icons";
 
 export default async function BoqImportPage() {
   const supabase = createClient();
@@ -11,11 +13,21 @@ export default async function BoqImportPage() {
   const { data: sessionRes } = await supabase.auth.getSession();
   const orgId = activeOrgFromToken(sessionRes.session?.access_token);
 
-  const { data: types } = await supabase
-    .from("building_types")
-    .select("id,name")
-    .is("archived_at", null)
-    .order("name");
+  const [{ data: types }, { data: staged }] = await Promise.all([
+    supabase.from("building_types")
+      .select("id,name")
+      .is("archived_at", null)
+      .order("name"),
+    // Staged-but-unconfirmed imports: the "continue where you left off" list —
+    // multi-bill workbooks leave several imports awaiting review, and users who
+    // navigate away must always find their way back.
+    supabase.from("boq_imports")
+      .select("id,format,status,created_at,building_type_id")
+      .eq("status", "review")
+      .order("created_at", { ascending: true })
+      .limit(20),
+  ]);
+  const typeName = (id: string | null) => (types ?? []).find((t) => t.id === id)?.name ?? "—";
 
   return (
     <div className="space-y-6">
@@ -31,6 +43,33 @@ export default async function BoqImportPage() {
             "Review each import, fix anything off, then confirm to add it to the recipe.",
           ],
         }} />
+
+      {(staged ?? []).length > 0 && (
+        <section className="card border-accent-500/25 bg-accent-500/[0.04]">
+          <h2 className="text-sm font-semibold text-white">
+            Continue where you left off — {(staged ?? []).length} bill{(staged ?? []).length === 1 ? "" : "s"} awaiting review
+          </h2>
+          <p className="mt-1 text-xs text-[#8b95a7]">
+            These are extracted and staged, but not yet confirmed into their recipe. Review them in order —
+            each confirm hands you the next.
+          </p>
+          <ul className="mt-3 space-y-1.5">
+            {(staged ?? []).map((s, i) => (
+              <li key={s.id}>
+                <Link href={`/boq-import/${s.id}`}
+                  className="group flex items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3.5 py-2.5 text-sm transition hover:border-accent-500/40">
+                  <span className="text-xs text-[#5b6473]">{i + 1}.</span>
+                  <span className="text-white">{typeName(s.building_type_id)}</span>
+                  <span className="badge badge-muted">{(s.format ?? "").toUpperCase()}</span>
+                  <span className="text-xs text-[#5b6473]">{new Date(s.created_at).toLocaleString("en-NG", { dateStyle: "medium", timeStyle: "short" })}</span>
+                  <IconChevron className="ml-auto h-4 w-4 -rotate-90 text-[#5b6473] transition group-hover:text-accent-300" />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       <BoqImportWizard orgId={orgId} types={types ?? []} />
     </div>
   );

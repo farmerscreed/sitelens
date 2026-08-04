@@ -16,9 +16,17 @@ export default async function RecipesPage() {
 
   const { data: types } = await supabase
     .from("building_types")
-    .select("id,name,category,version,parent_version_id")
+    .select("id,name,category,version,parent_version_id,cover_key")
     .is("archived_at", null)
     .order("name");
+
+  // Batch-sign the cover images (15-min URLs, org-scoped by storage RLS).
+  const coverKeys = (types ?? []).map((t) => t.cover_key).filter((k): k is string => !!k);
+  const covers: Record<string, string> = {};
+  if (coverKeys.length > 0) {
+    const { data: signed } = await supabase.storage.from("type-covers").createSignedUrls(coverKeys, 900);
+    for (const s of signed ?? []) if (s.signedUrl && s.path) covers[s.path] = s.signedUrl;
+  }
 
   return (
     <div className="space-y-6">
@@ -35,20 +43,30 @@ export default async function RecipesPage() {
         }} />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {(types ?? []).map((t) => (
-          <Link key={t.id} href={`/recipes/${t.id}`} className="card card-hover group flex items-center gap-3">
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/[0.08] bg-white/[0.03] text-accent-300">
-              <IconLayers className="h-5 w-5" />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block truncate font-semibold text-white">{t.name}</span>
-              <span className="block truncate text-xs text-[#8b95a7]">
-                {t.category ?? "—"} · v{t.version}{t.parent_version_id ? " · revised" : ""}
-              </span>
-            </span>
-            <IconChevron className="h-4 w-4 -rotate-90 text-[#5b6473] transition group-hover:text-accent-300" />
-          </Link>
-        ))}
+        {(types ?? []).map((t) => {
+          const cover = t.cover_key ? covers[t.cover_key] : undefined;
+          return (
+            <Link key={t.id} href={`/recipes/${t.id}`} className="card card-hover group overflow-hidden p-0">
+              {cover ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={cover} alt={t.name} className="h-36 w-full object-cover" />
+              ) : (
+                <div className="grid h-36 w-full place-items-center border-b border-white/[0.06] bg-white/[0.02] text-accent-300/60">
+                  <IconLayers className="h-8 w-8" />
+                </div>
+              )}
+              <div className="flex items-center gap-3 p-4">
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-semibold text-white">{t.name}</span>
+                  <span className="block truncate text-xs text-[#8b95a7]">
+                    {t.category ?? "—"} · v{t.version}{t.parent_version_id ? " · revised" : ""}
+                  </span>
+                </span>
+                <IconChevron className="h-4 w-4 -rotate-90 text-[#5b6473] transition group-hover:text-accent-300" />
+              </div>
+            </Link>
+          );
+        })}
         {(types ?? []).length === 0 && (
           <p className="card text-sm text-[#8b95a7] sm:col-span-2 lg:col-span-3">No types yet — create your first recipe below.</p>
         )}
