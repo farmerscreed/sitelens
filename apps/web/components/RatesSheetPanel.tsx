@@ -44,7 +44,7 @@ function fuzzyMatch(label: string, materials: Material[]): Material | null {
 //  • labour rates and derived build-ups → reference proposals on /ai
 //    (fn_record_inference) — they inform assemblies, they never touch prices.
 // Everything is editable and nothing is written until the human confirms (Rule 3).
-export function RatesSheetPanel({ orgId, sheetName, rows }: { orgId: string; sheetName: string; rows: RateRow[] }) {
+export function RatesSheetPanel({ orgId, sheetName, rows, onDone }: { orgId: string; sheetName: string; rows: RateRow[]; onDone?: () => void }) {
   const supabase = createClient();
   const [materials, setMaterials] = useState<Material[]>([]);
   const [prices, setPrices] = useState<Record<string, number>>({});
@@ -109,6 +109,7 @@ export function RatesSheetPanel({ orgId, sheetName, rows }: { orgId: string; she
       }
       setMsg({ ok: true, t: `Set ${priced} price(s)${created ? `, created ${created} material(s)` : ""} from “${sheetName}”.` });
       setDone(true);
+      onDone?.();
     } catch (e) {
       setMsg({ ok: false, t: e instanceof Error ? e.message : String(e) });
     } finally {

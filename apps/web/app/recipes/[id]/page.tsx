@@ -7,6 +7,7 @@ import { PriceMissingPanel } from "@/components/PriceMissingPanel";
 import { AssemblyProposals } from "@/components/AssemblyProposals";
 import { ScopeToggle } from "@/components/ScopeToggle";
 import { TakeoffCheckCard, type CheckViewRow } from "@/components/TakeoffCheckCard";
+import { TypeCoverUpload } from "@/components/TypeCoverUpload";
 import { IconAlert } from "@/components/icons";
 
 type WorkRow = {
@@ -52,7 +53,7 @@ export default async function RecipeDetail({ params }: { params: { id: string } 
     { data: workItems }, { data: comps }, { data: convs }, { data: assemblies }, { data: priceRows },
     { data: checkRows },
   ] = await Promise.all([
-    supabase.from("building_types").select("id,name,category,version").eq("id", typeId).single(),
+    supabase.from("building_types").select("id,name,category,version,cover_key").eq("id", typeId).single(),
     supabase.from("type_stages").select("id,name,sequence,expected_days").eq("building_type_id", typeId).order("sequence"),
     supabase.from("type_boq_items").select("id,stage_id,material_id,quantity,unit").eq("building_type_id", typeId),
     supabase.from("type_stage_costs").select("id,stage_id,category,amount").eq("building_type_id", typeId),
@@ -73,6 +74,13 @@ export default async function RecipeDetail({ params }: { params: { id: string } 
   ]);
 
   if (!type) redirect("/recipes");
+
+  // The structure's face: signed 15-min URL for the cover render, when set.
+  let coverUrl: string | null = null;
+  if (type.cover_key) {
+    const { data: signed } = await supabase.storage.from("type-covers").createSignedUrl(type.cover_key, 900);
+    coverUrl = signed?.signedUrl ?? null;
+  }
 
   const wi = (workItems ?? []) as WorkRow[];
   const matOf = (id: string) => (materials ?? []).find((m) => m.id === id);
@@ -165,7 +173,12 @@ export default async function RecipeDetail({ params }: { params: { id: string } 
   return (
     <div className="space-y-6">
       {/* Header — the document and its two numbers. */}
-      <section className="card">
+      <section className="card overflow-hidden p-0">
+        {coverUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={coverUrl} alt={type.name} className="h-56 w-full object-cover" />
+        )}
+        <div className="p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="flex flex-wrap items-center gap-2">
@@ -173,6 +186,9 @@ export default async function RecipeDetail({ params }: { params: { id: string } 
               {excluded.length > 0 && <span className="badge badge-muted">Semi-finished (as billed)</span>}
             </div>
             <p className="mt-1 text-sm text-[#8b95a7]">{type.category ?? "—"} · version {type.version}</p>
+            <div className="mt-2">
+              <TypeCoverUpload orgId={orgId} typeId={type.id} hasCover={!!type.cover_key} />
+            </div>
           </div>
           {wi.length > 0 && (
             <div className="flex flex-wrap gap-x-8 gap-y-3 text-right">
@@ -215,6 +231,7 @@ export default async function RecipeDetail({ params }: { params: { id: string } 
             </span>
           </p>
         )}
+        </div>
       </section>
 
       {wi.length > 0 && (

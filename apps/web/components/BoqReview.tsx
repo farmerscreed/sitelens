@@ -210,7 +210,9 @@ export function BoqReview({
 
   // After a successful confirm the review is done: show the finish screen instead
   // of the table (with the recipe's fresh numbers), not another wall of rows.
-  const [confirmedResult, setConfirmedResult] = useState<{ n: number; est: number | null; pct: number | null } | null>(null);
+  // Multi-bill workbooks stage several imports — the finish screen hands the user
+  // the NEXT unconfirmed one, so the flow is always "confirm, next, confirm, next".
+  const [confirmedResult, setConfirmedResult] = useState<{ n: number; est: number | null; pct: number | null; nextId: string | null; remaining: number } | null>(null);
 
   async function confirm() {
     setBusy(true); setMsg(null);
@@ -231,8 +233,15 @@ export function BoqReview({
       const own = stats.filter((s) => s.est_source === "build_up").reduce((a, s) => a + Number(s.est_cost), 0);
       pct = est > 0 ? Math.round((own / est) * 100) : 0;
     }
+    // The next staged-but-unconfirmed import for this recipe, oldest first.
+    const { data: siblings } = await supabase.from("boq_imports")
+      .select("id").eq("building_type_id", buildingTypeId).eq("status", "review")
+      .neq("id", importId).order("created_at", { ascending: true });
     setBusy(false);
-    setConfirmedResult({ n: Number(data), est, pct });
+    setConfirmedResult({
+      n: Number(data), est, pct,
+      nextId: siblings?.[0]?.id ?? null, remaining: siblings?.length ?? 0,
+    });
     router.refresh();
   }
 
@@ -263,17 +272,29 @@ export function BoqReview({
               <IconCheck className="h-5 w-5" />
             </span>
             <div>
-              <h2 className="text-lg font-semibold text-white">Recipe ready</h2>
+              <h2 className="text-lg font-semibold text-white">
+                {confirmedResult.nextId ? "Bill confirmed — keep going" : "Recipe ready"}
+              </h2>
               <p className="mt-0.5 text-sm text-[#8b95a7]">
                 {confirmedResult.n} work item{confirmedResult.n === 1 ? "" : "s"}
                 {confirmedResult.est != null && <> · Estimate {ngn(confirmedResult.est)}</>}
                 {confirmedResult.pct != null && <> · {confirmedResult.pct}% your prices</>}
+                {confirmedResult.remaining > 0 && <> · {confirmedResult.remaining} bill{confirmedResult.remaining === 1 ? "" : "s"} left to review</>}
               </p>
             </div>
           </div>
           <div className="mt-5 flex flex-wrap gap-3">
-            <Link href={`/recipes/${buildingTypeId}`} className="btn btn-primary">View the recipe</Link>
-            <Link href="/board" className="btn btn-ghost">Stamp buildings</Link>
+            {confirmedResult.nextId ? (
+              <>
+                <Link href={`/boq-import/${confirmedResult.nextId}`} className="btn btn-primary">Review the next bill →</Link>
+                <Link href={`/recipes/${buildingTypeId}`} className="btn btn-ghost">View the recipe so far</Link>
+              </>
+            ) : (
+              <>
+                <Link href={`/recipes/${buildingTypeId}`} className="btn btn-primary">View the recipe</Link>
+                <Link href="/board" className="btn btn-ghost">Stamp buildings</Link>
+              </>
+            )}
           </div>
         </div>
       ) : (
