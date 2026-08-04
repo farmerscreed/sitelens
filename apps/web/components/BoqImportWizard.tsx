@@ -333,14 +333,16 @@ export function BoqImportWizard({ orgId, types }: { orgId: string; types: Type[]
           <h2 className="text-sm font-semibold text-white">Your route through this workbook</h2>
           <ol className="mt-3 space-y-2 text-sm">
             {[
-              {
-                label: `Extract the ${pickedBills.length || "ticked"} bill sheet${pickedBills.length === 1 ? "" : "s"} — one click below runs them all, one at a time`,
-                state: allSettled ? "done" : runs ? "current" : "current",
-              },
+              // Prices FIRST (founder call, DECISIONS #70): materials + prices in
+              // the book before any bill is reviewed — simpler, and never wrong.
               ...(ratesSheets.length > 0 ? [{
-                label: "Seed your price book from the rates sheet — do this BEFORE reviewing bills, so supply lines price immediately",
-                state: ratesDone ? "done" : allSettled ? "current" : "todo",
+                label: "Seed your price book from the rates sheet below — materials and prices go in before any bill is reviewed",
+                state: ratesDone ? "done" : "current",
               }] : []),
+              {
+                label: `Extract the ${pickedBills.length || "ticked"} bill sheet${pickedBills.length === 1 ? "" : "s"} — one click runs them all, one at a time`,
+                state: allSettled ? "done" : ratesSheets.length === 0 || ratesDone ? "current" : "todo",
+              },
               {
                 label: "Review & confirm each bill, top to bottom — after each confirm, the review page hands you the next bill",
                 state: allSettled && (ratesSheets.length === 0 || ratesDone) ? "current" : "todo",
@@ -369,6 +371,13 @@ export function BoqImportWizard({ orgId, types }: { orgId: string; types: Type[]
           </ol>
         </section>
       )}
+
+      {/* Prices first (DECISIONS #70): the rates sheet is the opening move —
+          materials + prices land in the book before any bill is reviewed. */}
+      {wbMap && ratesSheets.map((s) => (
+        <RatesSheetPanel key={s.name} orgId={orgId} sheetName={s.name} rows={s.rows}
+          onDone={() => setRatesDone(true)} />
+      ))}
 
       {/* The workbook map — the human confirms what each sheet IS before import. */}
       {wbMap && !runs && (
@@ -456,7 +465,7 @@ export function BoqImportWizard({ orgId, types }: { orgId: string; types: Type[]
               </Link>
               <span className="text-xs text-[#8b95a7]">
                 {ratesSheets.length > 0 && !ratesDone
-                  ? "Tip: seed the prices below FIRST, then review — supply lines will price immediately."
+                  ? "Seed the prices ABOVE first, then review — supply lines will price immediately."
                   : "Confirm each bill in order; the review page hands you the next one. Stages and materials you bootstrap carry over."}
               </span>
             </div>
@@ -464,11 +473,7 @@ export function BoqImportWizard({ orgId, types }: { orgId: string; types: Type[]
         </section>
       )}
 
-      {/* The workbook's other lanes — visible as soon as the map exists. */}
-      {wbMap && ratesSheets.map((s) => (
-        <RatesSheetPanel key={s.name} orgId={orgId} sheetName={s.name} rows={s.rows}
-          onDone={() => setRatesDone(true)} />
-      ))}
+      {/* Cross-check capture — any time after the map; graded on the recipe page. */}
       {wbMap && typeId && checkSheets.map((s) => (
         <CheckSheetPanel key={s.name} buildingTypeId={typeId} sheetName={s.name} role={s.role} rows={s.rows}
           onDone={() => setChecksDone((n) => n + 1)} />
