@@ -88,7 +88,10 @@ now prefer the material-only rate). Schedule/summary sheets are captured as
 take-off against the workbook's own figures (`type_takeoff_check`). 57
 migrations; `boq_workbook` SQL suite + `boq_workbook_test.mjs` node gate (runs
 the two REAL files via VANTARA_BOQ_DIR); all suites green; web build clean.
-⚠️ Cloud: migration + `boq-extract-pdf` redeploy needed (CLOUD_MIGRATION.md).
+Cloud: migration APPLIED + `boq-extract-pdf` v11 DEPLOYED (2026-08-04, both via
+MCP — see CLOUD_MIGRATION.md). Branch `feat/boq-workbook-ingest`, **PR #4 OPEN**
+— web changes reach Vercel on merge; DB and edge fn are live on cloud already
+(both backward-compatible with the currently deployed web).
 
 **PHASE D — PHOTO GALLERY SHIPPED (2026-08-03).** Photos are now addressable per
 building: `media.building_id` + `fn_register_media(p_building)` (old signature

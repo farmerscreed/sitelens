@@ -150,13 +150,16 @@ cloud-move time. Append as we go. Region target: managed Supabase, London
   (`admin.createUser`, `email_confirm:true`), so the project's "allow new signups"
   toggle is irrelevant — self-signup stays off, invite still works.
 
-## Workbook BOQ ingest (2026-08-04, DECISIONS #68)
+## Workbook BOQ ingest (2026-08-04, DECISIONS #68) — CLOUD STEPS DONE
 
-- **Apply migration `20260803190000_boq_workbook_v3.sql`** to cloud (`supabase db push`
-  or MCP `apply_migration`) — rate-component columns, check-values table/fns,
-  `type_takeoff_check` view.
-- **Redeploy the `boq-extract-pdf` Edge Function** (it now accepts `sheetLabel` and
-  ships the extended `_shared/boq_core.mjs` grammar):
-  `~/.local/bin/supabase functions deploy boq-extract-pdf --project-ref gwzpqnnwflwkcrowolgx --use-api`.
-  No new secrets.
-- Web deploy picks up the wizard/review/recipe changes automatically (Vercel).
+- ✅ **Migration `20260803190000_boq_workbook_v3.sql` APPLIED to cloud** (2026-08-04,
+  via MCP `apply_migration` as `boq_workbook_v3`) — rate-component columns,
+  check-values table/fns, `type_takeoff_check` view all verified present.
+- ✅ **`boq-extract-pdf` Edge Function REDEPLOYED** (2026-08-04, now v11 ACTIVE) —
+  accepts `sheetLabel`, ships the extended `_shared/boq_core.mjs` grammar.
+  Deployed via MCP `deploy_edge_function` (this box's CLI token lacks deploy
+  privileges — 403; the CLI route from ~/.local/bin works on the other dev box).
+  Note: this box's scoop CLI rejects `[local_smtp]` in config.toml (version skew);
+  workaround if the CLI is ever needed here: temporarily rename to `[inbucket]`.
+- Web deploy picks up the wizard/review/recipe changes automatically (Vercel)
+  once PR #4 merges to master.
