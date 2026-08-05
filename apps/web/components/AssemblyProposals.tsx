@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { IconCheck, IconAlert } from "@/components/icons";
+import { unitsClash } from "@/lib/units";
 
 export type ProposalCandidate = {
   id: string;                 // staged row id (review mode) or work item id (recipe mode)
@@ -262,9 +263,12 @@ export function AssemblyProposals({
       if (!g) {
         const unit = (c.unit ?? (sig.assemblyKind === "concrete" ? "m3" : "m2")).trim();
         const derived = deriveComps(materials, sig.assemblyKind, sig.ratio, unit, sig.thickness);
+        // Never offer an existing mix whose OUTPUT unit clashes with the lines'
+        // unit (the ₦82.96m per-m³-on-a-m²-line incident — server refuses too).
         const existing = assemblies.find((a) =>
-          (a.ratio && ratioStr && a.ratio.trim() === ratioStr) ||
-          (ratioStr && RATIO_GRADE[ratioStr] && a.name.toLowerCase().includes(`grade ${RATIO_GRADE[ratioStr]}`)),
+          !unitsClash(a.unit, unit) &&
+          ((a.ratio && ratioStr && a.ratio.trim() === ratioStr) ||
+           (ratioStr && RATIO_GRADE[ratioStr] && a.name.toLowerCase().includes(`grade ${RATIO_GRADE[ratioStr]}`))),
         ) ?? null;
         g = {
           key, on: true, assemblyKind: sig.assemblyKind,

@@ -9,6 +9,7 @@ import { ScopeToggle } from "@/components/ScopeToggle";
 import { TakeoffCheckCard, type CheckViewRow } from "@/components/TakeoffCheckCard";
 import { TypeCoverUpload } from "@/components/TypeCoverUpload";
 import { DeleteRecipeButton, WorkItemRowControls } from "@/components/DeleteControls";
+import { unitsClash } from "@/lib/units";
 import { IconAlert } from "@/components/icons";
 
 type WorkRow = {
@@ -314,12 +315,22 @@ export default async function RecipeDetail({ params }: { params: { id: string } 
                         const boq = r.boq_amount == null ? null : Number(r.boq_amount);
                         // Variance is only meaningful once the estimate is your own price.
                         const diff = r.est_source === "build_up" && est != null && boq != null ? est - boq : null;
+                        // The ₦82.96m class of error: a mix priced per one unit on a
+                        // line measured in another. New attachments are refused; this
+                        // badge exposes any pre-existing ones.
+                        const asm = r.assembly_id ? (assemblies ?? []).find((a) => a.id === r.assembly_id) : null;
+                        const unitClash = asm != null && unitsClash(asm.unit, r.unit);
                         return (
                           <tr key={r.id}>
                             <td className="text-white">
                               <div className="max-w-[26rem] whitespace-normal text-[13px] leading-snug">{r.description}</div>
                               <div className="mt-0.5 flex flex-wrap items-center gap-2">
                                 {r.boq_ref && <span className="text-[10px] text-[#5b6473]">{r.boq_ref}</span>}
+                                {unitClash && (
+                                  <span className="badge badge-red" title="This line's estimate is wrong — detach the mix or pick one that outputs per the line's unit">
+                                    unit mismatch: mix per {asm!.unit}, line in {r.unit}
+                                  </span>
+                                )}
                                 <ScopeToggle id={r.id} inScope={true} />
                                 <WorkItemRowControls id={r.id} stageId={r.stage_id} stages={stages ?? []} />
                               </div>
