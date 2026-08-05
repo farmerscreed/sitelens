@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { IconCheck, IconAlert } from "@/components/icons";
 import { AssemblyProposals, type ProposalAttachment } from "@/components/AssemblyProposals";
 import { DeleteImportButton } from "@/components/DeleteControls";
+import { unitsClash } from "@/lib/units";
 
 type Row = {
   id: string; raw_text: string; resolved_text: string | null;
@@ -478,7 +479,16 @@ export function BoqReview({
                             <select className={`select mt-1 py-1.5 ${s.assembly_id ? "" : "border-blue-400/40"}`} value={s.assembly_id}
                               onChange={(e) => patch(i, { assembly_id: e.target.value })}>
                               <option value="">— assembly —</option>
-                              {allAssemblies.map((a) => <option key={a.id} value={a.id}>{a.name} (/{a.unit})</option>)}
+                              {/* A mix whose output unit clashes with the line's unit is
+                                  unselectable — the server refuses it at confirm anyway. */}
+                              {allAssemblies.map((a) => {
+                                const clash = unitsClash(a.unit, s.unit);
+                                return (
+                                  <option key={a.id} value={a.id} disabled={clash}>
+                                    {a.name} (/{a.unit}){clash ? ` — per ${a.unit}, line is ${s.unit}` : ""}
+                                  </option>
+                                );
+                              })}
                             </select>
                           )}
                         </td>

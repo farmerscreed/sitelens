@@ -630,3 +630,17 @@ logged here so the founder can review drift. Newest at the bottom.
     UI: two-click danger buttons (no native dialogs) on the import list, review
     page, recipe danger zone and building header; per-line stage picker + delete
     on the recipe's Bill table. Suite: delete_paths.sql.
+72. **Assembly unit guard (the ₦82.96m incident, 2026-08-05).** During the
+    founder's practice run a per-m³ "Concrete mix 1:4" was attached (via the
+    review dropdown) to the per-m² render line — 500 m² × ₦173,160/m³ inflated
+    the recipe by ₦82.96m and the app said nothing. Humans will pick wrong
+    dropdown options weekly; the system must refuse. Now: fn__assert_assembly_unit
+    refuses any attachment where the assembly's OUTPUT unit and the line's unit
+    both normalize and differ — enforced in fn_confirm_boq_import_v2 AND
+    fn_update_work_item (detaching always allowed — it is the correction path);
+    unknown units are tolerated (refuse only what is provably wrong). Web:
+    mismatched mixes are unselectable in the review dropdown, AssemblyProposals
+    never offers a clashing existing mix, and the Bill table badges any
+    pre-existing mismatch in red. The bad line on cloud was corrected through
+    fn_update_work_item (audited, as the org admin): TEST G+3 est fell from
+    ₦212.5m to ₦129.5m. Suite: assembly_unit_guard.sql.
