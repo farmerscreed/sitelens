@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { activeOrgFromToken } from "@/lib/activeOrg";
 import { BoqImportWizard } from "@/components/BoqImportWizard";
 import { PageHeader } from "@/components/PageHeader";
+import { DeleteImportButton } from "@/components/DeleteControls";
 import { IconChevron } from "@/components/icons";
 
 export default async function BoqImportPage() {
@@ -55,15 +56,16 @@ export default async function BoqImportPage() {
           </p>
           <ul className="mt-3 space-y-1.5">
             {(staged ?? []).map((s, i) => (
-              <li key={s.id}>
+              <li key={s.id} className="flex items-center gap-2">
                 <Link href={`/boq-import/${s.id}`}
-                  className="group flex items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3.5 py-2.5 text-sm transition hover:border-accent-500/40">
+                  className="group flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3.5 py-2.5 text-sm transition hover:border-accent-500/40">
                   <span className="text-xs text-[#5b6473]">{i + 1}.</span>
                   <span className="text-white">{typeName(s.building_type_id)}</span>
                   <span className="badge badge-muted">{(s.format ?? "").toUpperCase()}</span>
                   <span className="text-xs text-[#5b6473]">{new Date(s.created_at).toLocaleString("en-NG", { dateStyle: "medium", timeStyle: "short" })}</span>
                   <IconChevron className="ml-auto h-4 w-4 -rotate-90 text-[#5b6473] transition group-hover:text-accent-300" />
                 </Link>
+                <DeleteImportButton importId={s.id} small />
               </li>
             ))}
           </ul>

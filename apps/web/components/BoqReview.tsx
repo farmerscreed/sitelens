@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { IconCheck, IconAlert } from "@/components/icons";
 import { AssemblyProposals, type ProposalAttachment } from "@/components/AssemblyProposals";
+import { DeleteImportButton } from "@/components/DeleteControls";
 
 type Row = {
   id: string; raw_text: string; resolved_text: string | null;
@@ -517,6 +518,7 @@ export function BoqReview({
           <IconCheck className="h-4 w-4" />{busy ? "Confirming…" : `Confirm ${mappedCount} row${mappedCount === 1 ? "" : "s"} as work items`}
         </button>
         <button className="btn btn-ghost" onClick={proposePrices} disabled={busy}>Propose prices from this bill</button>
+        <DeleteImportButton importId={importId} confirmed={status === "confirmed"} redirectTo="/boq-import" />
         <span className="text-xs text-[#8b95a7]">Ticked rows become work items; only material-supply rows need a material (those also feed the classic recipe).</span>
         {msg && (
           <span className={`flex items-center gap-1.5 text-sm ${msg.ok ? "text-emerald-300" : "text-red-300"}`}>
