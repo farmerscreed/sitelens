@@ -8,6 +8,7 @@ import { LogWorkDoneForm } from "@/components/LogWorkDoneForm";
 import { SnapshotBudgetButton } from "@/components/SnapshotBudgetButton";
 import { VariationAdder } from "@/components/VariationAdder";
 import { ArchiveBuildingButton } from "@/components/ArchiveBuildingButton";
+import { DeleteBuildingButton } from "@/components/DeleteControls";
 import { IconChevron, IconCheck, IconAlert } from "@/components/icons";
 
 type Money = {
@@ -154,6 +155,7 @@ export default async function BuildingDetail({ params }: { params: { id: string 
         <div className="flex flex-wrap items-center gap-3">
           <span className={`badge ${badge(b.status)}`}>{b.status}</span>
           <ArchiveBuildingButton buildingId={b.id} code={b.code} archived={b.archived_at != null} />
+          <DeleteBuildingButton buildingId={b.id} />
         </div>
       </header>
 

@@ -70,6 +70,18 @@ raw findings under subagents/workflows/wf_e9e89977*):
 - **Dashboard redesigned** — portfolio-complete hero, live Homes/Homes-sold/Collected, a
   "Portfolio by milestone" rollup.
 
+**DELETE & EDIT PATHS (2026-08-05, DECISIONS #71).** Founder asked to delete/edit
+everything; built with one line held: financial records stay append-only (void
+only — a voided movement still blocks building deletion). Guarded fns:
+fn_delete_boq_import (confirmed → explicit cascade + per-group recipe recompute),
+fn_delete_work_item, fn_update_work_item + movable stage (group UPSERT — the
+update-only version silently dropped lines moved to a fresh stage; caught in
+tests), fn_delete_building (admin; ANY history → refused with the list, archive
+instead), fn_delete_building_type (admin; buildings/planner lines → refused;
+imports cascade). UI: two-click danger buttons on import list/review/recipe/
+building pages + per-line stage picker & delete on the Bill table.
+`delete_paths` suite; 59 migrations, all green. Cloud applied same day.
+
 **RECIPE COVERS + GUIDED IMPORT FLOW (2026-08-04, DECISIONS #69).** First-use
 founder feedback on the workbook ingest, same day: (1) recipes carry a cover
 photo of the structure (new `type-covers` bucket + `fn_set_type_cover`, shown on

@@ -611,3 +611,22 @@ logged here so the founder can review drift. Newest at the bottom.
     quick, impossible to get wrong, and the rates sheet's materials are already
     in the catalog when bills arrive for review. The rates panel now sits ABOVE
     the extract step and the stepper leads with it.
+71. **Delete & edit paths — with an immovable line (founder request, 2026-08-05).**
+    The founder asked for delete/edit of "everything": extracted bills, recipes,
+    buildings. Built as guarded SECURITY DEFINER fns (Rule 1), with ONE refusal
+    held and stated to the founder: financial records (expenses, material
+    movements, payments, sales) remain append-only — void, never delete or edit;
+    even a VOIDED movement still blocks its building's deletion (history is
+    history). What deletes: boq imports (staging is proposals; a CONFIRMED
+    import cascades its work items only with explicit consent and the classic
+    recipe is recomputed per touched (stage,material) group); single work items
+    (same recompute); buildings with NO history (admin-gated; any money/reports/
+    photos/work-done/sales/portal links → refused with the list, pointing at
+    archive); recipes with nothing stamped from them (admin-gated; buildings or
+    planner lines → refused; child versions unlinked, imports cascade). Edit:
+    fn_update_work_item gains a movable stage; moving/deleting a supply line
+    UPSERTS its summed projection into both touched recipe groups (found in
+    testing: update-only silently dropped a line moved to a fresh stage).
+    UI: two-click danger buttons (no native dialogs) on the import list, review
+    page, recipe danger zone and building header; per-line stage picker + delete
+    on the recipe's Bill table. Suite: delete_paths.sql.

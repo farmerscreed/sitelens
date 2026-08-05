@@ -8,6 +8,7 @@ import { AssemblyProposals } from "@/components/AssemblyProposals";
 import { ScopeToggle } from "@/components/ScopeToggle";
 import { TakeoffCheckCard, type CheckViewRow } from "@/components/TakeoffCheckCard";
 import { TypeCoverUpload } from "@/components/TypeCoverUpload";
+import { DeleteRecipeButton, WorkItemRowControls } from "@/components/DeleteControls";
 import { IconAlert } from "@/components/icons";
 
 type WorkRow = {
@@ -317,9 +318,10 @@ export default async function RecipeDetail({ params }: { params: { id: string } 
                           <tr key={r.id}>
                             <td className="text-white">
                               <div className="max-w-[26rem] whitespace-normal text-[13px] leading-snug">{r.description}</div>
-                              <div className="mt-0.5 flex items-center gap-2">
+                              <div className="mt-0.5 flex flex-wrap items-center gap-2">
                                 {r.boq_ref && <span className="text-[10px] text-[#5b6473]">{r.boq_ref}</span>}
                                 <ScopeToggle id={r.id} inScope={true} />
+                                <WorkItemRowControls id={r.id} stageId={r.stage_id} stages={stages ?? []} />
                               </div>
                             </td>
                             <td><span className={`badge ${kindBadge(r.kind)}`}>{KIND_LABEL[r.kind] ?? r.kind.replace("_", " ")}</span></td>
@@ -434,6 +436,17 @@ export default async function RecipeDetail({ params }: { params: { id: string } 
         costs={costs ?? []}
         materials={materials ?? []}
       />
+
+      {/* Danger zone — delete refuses while buildings or planner lines use the
+          recipe (server-side guards); financial history is untouchable by design. */}
+      <section className="card border-red-500/15">
+        <h2 className="text-sm font-semibold text-white">Danger zone</h2>
+        <p className="mt-1 text-xs text-[#8b95a7]">
+          Deleting removes this recipe with its bills, stages, work items and check values. It is refused while any
+          building is stamped from it or a planner scenario uses it — archive covers those cases.
+        </p>
+        <div className="mt-3"><DeleteRecipeButton typeId={type.id} /></div>
+      </section>
     </div>
   );
 }
